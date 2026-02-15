@@ -1,65 +1,57 @@
-EASY SCHOOL ERP QUICK START
+&lt;div align="center"&gt;
 
-Tech: Laravel + Vue 3 + Inertia.js + Vite + Tailwind CSS
-Subdomains: admin.easyschool.local, junior.easyschool.local, middle.easyschool.local, senior.easyschool.local, highcare.easyschool.local
+# 🎓 Easy School ERP
 
-Clone & Setup
+**Modern Multi-Tenant School Management System**
 
+[![Laravel](https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com)
+[![Vue.js](https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D)](https://vuejs.org)
+[![Inertia.js](https://img.shields.io/badge/Inertia.js-9553E9?style=for-the-badge&logo=inertia&logoColor=white)](https://inertiajs.com)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
+
+&lt;/div&gt;
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🏢 **Multi-Tenant Architecture** | Separate subdomains for each school branch |
+| 👨‍💼 **Admin Dashboard** | Centralized management for all tenants |
+| 🎨 **Modern UI/UX** | Built with Vue 3 Composition API + Tailwind CSS |
+| ⚡ **Lightning Fast** | Vite HMR with instant page loads |
+| 🔄 **Seamless Routing** | Inertia.js for SPA-like experience without API complexity |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- PHP 8.2+
+- Node.js 18+
+- Composer
+- MySQL/PostgreSQL
+
+### Installation
+
+```bash
+# Clone repository
 git clone https://github.com/muradbdinfo/easyschoolerp.git
-
 cd easyschoolerp
+
+# Install dependencies
 composer install
 npm install
+
+# Environment setup
 cp .env.example .env
 php artisan key:generate
+
+# Database
 php artisan migrate
 
-Hosts File (Local)
-
-127.0.0.1 easyschool.local
-127.0.0.1 www.easyschool.local
-
-127.0.0.1 admin.easyschool.local
-127.0.0.1 junior.easyschool.local
-127.0.0.1 middle.easyschool.local
-127.0.0.1 senior.easyschool.local
-127.0.0.1 highcare.easyschool.local
-
-Routes Overview
-
-Marketing: / → Marketing/Home
-
-Admin: /admin/dashboard → Admin/Dashboard
-
-Tenant: /dashboard → Tenant/Dashboard
-
-Vite Dev Server
-
+# Start development servers
 npm run dev
-
-Laravel server:
-
-php artisan serve --host=0.0.0.0  
-
-
-HMR works with all subdomains. Access e.g.:
-
-http://easyschool.local:5173  
-http://admin.easyschool.local:5173  
-
-
-Production Build
-
-npm run build
-
-Assets are served from public/build.
-
-Notes
-
-Vue 3 uses Composition API
-
-Inertia handles frontend routing
-
-Tailwind CSS for styling
-
-Subdomain wildcard supported in dev
+php artisan serve --host=0.0.0.0
