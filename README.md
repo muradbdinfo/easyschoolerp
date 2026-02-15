@@ -1,4 +1,4 @@
-&lt;div align="center"&gt;
+
 
 # 🎓 Easy School ERP
 
