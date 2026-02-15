@@ -1,0 +1,129 @@
+Step 2: Configure PHP (CRITICAL)
+File: C:\xampp\php\php.ini
+Open this file and make these changes:
+ini; Find and change these settings:
+max_execution_time = 300
+max_input_time = 300
+memory_limit = 512M
+post_max_size = 100M
+upload_max_filesize = 100M
+date.timezone = Asia/Dhaka
+
+; Enable these extensions (remove semicolon):
+extension=curl
+extension=fileinfo
+extension=gd
+extension=intl
+extension=mbstring
+extension=mysqli
+extension=openssl
+extension=pdo_mysql
+extension=zip
+
+; Enable OPcache for performance:
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.max_accelerated_files=10000
+⚠️ IMPORTANT: Restart Apache after making these changes!
+Step 3: Configure MySQL
+File: C:\xampp\mysql\bin\my.ini
+Add/modify these settings:
+ini[mysqld]
+max_connections = 200
+max_allowed_packet = 64M
+innodb_buffer_pool_size = 512M
+innodb_log_file_size = 64M
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+⚠️ IMPORTANT: Restart MySQL after making these changes!
+Step 4: Setup Virtual Hosts
+File: C:\xampp\apache\conf\extra\httpd-vhosts.conf
+Add these virtual hosts at the end of the file:
+apache# Marketing Website
+<VirtualHost *:80>
+    ServerName erp.local
+    ServerAlias www.erp.local
+    DocumentRoot "C:/xampp/htdocs/school-erp/public"
+    
+    <Directory "C:/xampp/htdocs/school-erp/public">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    ErrorLog "logs/erp-error.log"
+    CustomLog "logs/erp-access.log" combined
+</VirtualHost>
+
+# Admin Panel
+<VirtualHost *:80>
+    ServerName admin.erp.local
+    DocumentRoot "C:/xampp/htdocs/school-erp/public"
+    
+    <Directory "C:/xampp/htdocs/school-erp/public">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    ErrorLog "logs/admin-erp-error.log"
+    CustomLog "logs/admin-erp-access.log" combined
+</VirtualHost>
+
+# Tenant Wildcard (All school subdomains)
+<VirtualHost *:80>
+    ServerName erp.local
+    ServerAlias *.erp.local
+    DocumentRoot "C:/xampp/htdocs/school-erp/public"
+    
+    <Directory "C:/xampp/htdocs/school-erp/public">
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    ErrorLog "logs/tenant-erp-error.log"
+    CustomLog "logs/tenant-erp-access.log" combined
+</VirtualHost>
+Step 5: Configure Hosts File
+Windows: C:\Windows\System32\drivers\etc\hosts
+Linux/Mac: /etc/hosts
+
+127.0.0.1    erp.local
+127.0.0.1    www.erp.local
+127.0.0.1    admin.erp.local
+127.0.0.1    myschool.erp.local
+127.0.0.1    demo.erp.local
+127.0.0.1    school1.erp.local
+127.0.0.1    school2.erp.local
+
+
+
+Create application user:
+
+Username: erp_admin
+Password: ErpSecure2024! (save this in password manager!)
+Host: localhost
+Check "Create database with same name and grant all privileges"
+Check "Grant all privileges on wildcard name (username_%)."
+Click "Go"
+
+Create databases manually:
+Go to Databases tab and create:
+
+erp_central (collation: utf8mb4_unicode_ci)
+tenant_template (collation: utf8mb4_unicode_ci)
+tenant_myschool (collation: utf8mb4_unicode_ci)
+tenant_demo (collation: utf8mb4_unicode_ci)
+
+Grant privileges to erp_admin on all these databases.
+
+
+
+
+GRANT ALL PRIVILEGES ON erp_central.* TO 'erp_admin'@'localhost';
+GRANT ALL PRIVILEGES ON tenant_template.* TO 'erp_admin'@'localhost';
+GRANT ALL PRIVILEGES ON tenant_myschool.* TO 'erp_admin'@'localhost';
+GRANT ALL PRIVILEGES ON tenant_demo.* TO 'erp_admin'@'localhost';
+
+FLUSH PRIVILEGES;
