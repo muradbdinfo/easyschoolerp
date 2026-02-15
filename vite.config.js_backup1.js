@@ -22,17 +22,4 @@ export default defineConfig({
             '@': '/resources/js',
         },
     },
-    // ADD THIS SERVER CONFIGURATION
-    server: {
-        host: '0.0.0.0',
-        port: 5173,
-        strictPort: true,
-        cors: {
-            origin: ['http://easyschool.local', 'https://easyschool.local'],
-            credentials: true,
-        },
-        hmr: {
-            host: 'easyschool.local',
-        },
-    },
 });
