@@ -22,13 +22,21 @@ export default defineConfig({
             '@': '/resources/js',
         },
     },
-    // ADD THIS SERVER CONFIGURATION
     server: {
         host: '0.0.0.0',
         port: 5173,
         strictPort: true,
         cors: {
-            origin: ['http://easyschool.local', 'https://easyschool.local'],
+            origin: [
+                'http://easyschool.local',
+                'http://admin.easyschool.local', 
+                'http://junior.easyschool.local',
+                'http://middle.easyschool.local',
+                'http://senior.easyschool.local',
+                'http://highcare.easyschool.local',
+                   // Add your subdomain
+                'http://*.easyschool.local',         // Wildcard for all subdomains
+            ],
             credentials: true,
         },
         hmr: {
