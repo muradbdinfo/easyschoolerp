@@ -6,6 +6,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -45,4 +47,27 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+// Inside User class:
+
+public function tenant(): BelongsTo
+{
+    return $this->belongsTo(Tenant::class);
+}
+
+public function notifications(): HasMany
+{
+    return $this->hasMany(Notification::class);
+}
+
+public function unreadNotifications()
+{
+    return $this->notifications()->unread();
+}
+
+public function getUnreadNotificationCountAttribute(): int
+{
+    return $this->unreadNotifications()->count();
+}
+    
 }

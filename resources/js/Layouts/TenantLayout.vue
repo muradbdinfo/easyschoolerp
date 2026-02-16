@@ -1,5 +1,8 @@
 <template>
     <div class="min-h-screen bg-gray-50 flex">
+        <!-- Toast Component (IMPORTANT!) -->
+        <Toast position="top-right" />
+        
         <!-- Sidebar -->
         <aside :class="['bg-white border-r border-gray-200 transition-all duration-300', 
                         sidebarCollapsed ? 'w-16' : 'w-64']">
@@ -70,62 +73,130 @@
         <OverlayPanel ref="notificationPanel">
             <div class="w-80">
                 <h3 class="font-semibold mb-4">Notifications</h3>
-                <!-- Notifications will go here -->
+                <p class="text-gray-500 text-center py-8">No notifications yet</p>
             </div>
         </OverlayPanel>
     </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import { useToast } from '@/Composables/useToast';
 import PrimeMenu from 'primevue/menu';
 import Avatar from 'primevue/avatar';
 import Badge from 'primevue/badge';
 import Breadcrumb from 'primevue/breadcrumb';
 import Dropdown from 'primevue/dropdown';
 import OverlayPanel from 'primevue/overlaypanel';
+import Toast from 'primevue/toast';
 import { Menu, X, Home, ShoppingCart, Box, BarChart3, Settings, Bell } from 'lucide-vue-next';
 
+// ============================================
+// CONSOLE LOGS FOR TESTING (Remove in production)
+// ============================================
+console.log('🎯 TenantLayout: Component loaded');
+
 defineProps({
-    schoolName: String,
-    breadcrumbItems: Array
+    schoolName: {
+        type: String,
+        default: 'My School'
+    },
+    breadcrumbItems: {
+        type: Array,
+        default: () => []
+    }
 });
 
 const page = usePage();
+console.log('📄 TenantLayout: Page props:', page.props);
+
+const toast = useToast();
+console.log('🍞 TenantLayout: Toast service initialized');
+
 const sidebarCollapsed = ref(false);
 const selectedBranch = ref(null);
-const unreadCount = ref(5);
+const unreadCount = ref(0);
 const notificationPanel = ref();
 
 const branches = ref([
     { name: 'All Branches', code: 'all' },
     { name: 'Junior Branch', code: 'junior' },
+    { name: 'Middle Branch', code: 'middle' },
     { name: 'Senior Branch', code: 'senior' },
+    { name: 'High Care Branch', code: 'highcare' },
 ]);
 
 const toggleSidebar = () => {
     sidebarCollapsed.value = !sidebarCollapsed.value;
+    console.log('📱 Sidebar toggled:', sidebarCollapsed.value ? 'collapsed' : 'expanded');
 };
 
 const toggleNotifications = (event) => {
     notificationPanel.value.toggle(event);
+    console.log('🔔 Notification panel toggled');
 };
 
 const userInitials = computed(() => {
-    // Calculate from user name
-    return 'JD';
+    const user = page.props.auth?.user;
+    if (!user) {
+        console.log('⚠️ No user data found');
+        return 'U';
+    }
+    
+    const names = user.name.split(' ');
+    const initials = names.length >= 2 
+        ? names[0][0] + names[1][0]
+        : user.name.substring(0, 2).toUpperCase();
+    
+    console.log('👤 User initials calculated:', initials);
+    return initials;
 });
 
 const isActive = (route) => {
-    return page.url.startsWith(route);
+    const active = page.url.startsWith(route);
+    if (active) {
+        console.log('✅ Active route:', route);
+    }
+    return active;
 };
 
 const menuItems = ref([
     { label: 'Dashboard', icon: Home, route: '/dashboard', badge: null },
-    { label: 'Procurement', icon: ShoppingCart, route: '/procurement', badge: 3 },
+    { label: 'Procurement', icon: ShoppingCart, route: '/procurement', badge: null },
     { label: 'Assets', icon: Box, route: '/assets', badge: null },
     { label: 'Reports', icon: BarChart3, route: '/reports', badge: null },
     { label: 'Settings', icon: Settings, route: '/settings', badge: null },
 ]);
+console.log('📋 Menu items loaded:', menuItems.value.length, 'items');
+
+// Watch for flash messages
+watch(() => page.props.flash, (flash) => {
+    console.log('💬 Flash message received:', flash);
+    
+    if (flash?.success) {
+        console.log('✅ Showing success toast:', flash.success);
+        toast.success(flash.success);
+    }
+    if (flash?.error) {
+        console.log('❌ Showing error toast:', flash.error);
+        toast.error(flash.error);
+    }
+    if (flash?.warning) {
+        console.log('⚠️ Showing warning toast:', flash.warning);
+        toast.warning(flash.warning);
+    }
+    if (flash?.info) {
+        console.log('ℹ️ Showing info toast:', flash.info);
+        toast.info(flash.info);
+    }
+}, { immediate: true, deep: true });
+
+// Component mounted
+onMounted(() => {
+    console.log('✅ TenantLayout: Component mounted successfully');
+    console.log('👤 Current user:', page.props.auth?.user);
+    console.log('🌐 Current URL:', page.url);
+    console.log('🏫 School name:', page.props.schoolName || 'My School');
+});
 </script>
