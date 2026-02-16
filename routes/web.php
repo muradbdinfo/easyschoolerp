@@ -8,6 +8,7 @@ use Inertia\Inertia;
 
 // Include authentication routes (login, logout, etc.)
 require __DIR__.'/auth.php';
+require __DIR__.'/procurement.php';
 
 /*
 |--------------------------------------------------------------------------

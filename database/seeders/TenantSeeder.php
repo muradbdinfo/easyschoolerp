@@ -11,8 +11,8 @@ class TenantSeeder extends Seeder
     {
         $tenants = [
             [
-                'name' => 'Green Valley International School',
-                'subdomain' => 'greenvalley',
+                'name' => 'Junior School',
+                'subdomain' => 'junior',
                 'database_name' => 'tenant_greenvalley',
                 'status' => 'active',
                 'plan' => 'professional',
@@ -25,8 +25,8 @@ class TenantSeeder extends Seeder
                 'activated_at' => now()->subDays(30),
             ],
             [
-                'name' => 'Sunshine Academy',
-                'subdomain' => 'sunshine',
+                'name' => 'Middle School',
+                'subdomain' => 'middle',
                 'database_name' => 'tenant_sunshine',
                 'status' => 'trial',
                 'plan' => 'basic',
@@ -39,8 +39,22 @@ class TenantSeeder extends Seeder
                 'activated_at' => null,
             ],
             [
-                'name' => 'Oxford International School',
-                'subdomain' => 'oxford',
+                'name' => 'Senior School',
+                'subdomain' => 'senior', // FIXED: Changed from duplicate 'middle'
+                'database_name' => 'tenant_senior', // FIXED: Changed from duplicate 'tenant_sunshine'
+                'status' => 'trial',
+                'plan' => 'basic',
+                'active_modules' => ['procurement'],
+                'mrr' => 0,
+                'contact_name' => 'Mr. Karim Hassan', // FIXED: Changed from duplicate contact
+                'contact_email' => 'karim@senior.edu', // FIXED: Changed from duplicate email
+                'contact_phone' => '+880 1912-567890', // FIXED: Changed from duplicate phone
+                'trial_ends_at' => now()->addDays(15),
+                'activated_at' => null,
+            ],
+            [
+                'name' => 'High Care School',
+                'subdomain' => 'highcare',
                 'database_name' => 'tenant_oxford',
                 'status' => 'active',
                 'plan' => 'enterprise',
@@ -48,7 +62,7 @@ class TenantSeeder extends Seeder
                 'mrr' => 200.00,
                 'contact_name' => 'Ms. Emily Chen',
                 'contact_email' => 'emily@oxford.edu',
-                'contact_phone' => '+880 1912-345678',
+                'contact_phone' => '+880 1913-345678', // FIXED: Changed phone number to be unique
                 'trial_ends_at' => null,
                 'activated_at' => now()->subDays(60),
             ],

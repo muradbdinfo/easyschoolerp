@@ -1,5 +1,5 @@
 <template>
-    <AdminLayout page-title="Create Tenant">
+    <AdminLayout page-title="Edit Tenant">
         <div class="max-w-3xl mx-auto">
             <Card>
                 <template #title>
@@ -10,7 +10,7 @@
                             rounded 
                             @click="$inertia.visit(route('admin.tenants.index'))"
                         />
-                        <span>Create New Tenant</span>
+                        <span>Edit Tenant</span>
                     </div>
                 </template>
                 <template #content>
@@ -36,22 +36,18 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Subdomain <span class="text-red-500">*</span>
+                                    Subdomain
                                 </label>
                                 <div class="flex items-center gap-2">
                                     <InputText 
-                                        v-model="form.subdomain"
-                                        placeholder="greenvalley"
+                                        :value="tenant.subdomain"
+                                        disabled
                                         class="flex-1"
-                                        :invalid="!!form.errors.subdomain"
                                     />
-                                    <span class="text-gray-500">.erp.local</span>
+                                    <span class="text-gray-500">.easyschool.local</span>
                                 </div>
                                 <small class="text-gray-500 block mt-1">
-                                    Only lowercase letters, numbers, and hyphens
-                                </small>
-                                <small class="text-red-500" v-if="form.errors.subdomain">
-                                    {{ form.errors.subdomain }}
+                                    Subdomain cannot be changed after creation
                                 </small>
                             </div>
 
@@ -72,15 +68,34 @@
 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Trial Period (Days) <span class="text-red-500">*</span>
+                                        Status <span class="text-red-500">*</span>
                                     </label>
-                                    <InputNumber 
-                                        v-model="form.trial_days"
-                                        :min="0"
-                                        :max="90"
+                                    <Dropdown 
+                                        v-model="form.status"
+                                        :options="statusOptions"
+                                        optionLabel="label"
+                                        optionValue="value"
+                                        placeholder="Select Status"
                                         class="w-full"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Monthly Recurring Revenue (MRR) <span class="text-red-500">*</span>
+                                </label>
+                                <InputNumber 
+                                    v-model="form.mrr"
+                                    mode="currency"
+                                    currency="USD"
+                                    locale="en-US"
+                                    :min="0"
+                                    class="w-full"
+                                />
+                                <small class="text-gray-500 block mt-1">
+                                    Monthly subscription amount
+                                </small>
                             </div>
                         </div>
 
@@ -135,6 +150,22 @@
 
                         <Divider />
 
+                        <!-- Additional Information -->
+                        <div class="bg-gray-50 p-4 rounded-lg space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Database Name:</span>
+                                <span class="font-medium">{{ tenant.database_name }}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Created:</span>
+                                <span class="font-medium">{{ formatDate(tenant.created_at) }}</span>
+                            </div>
+                            <div class="flex justify-between text-sm" v-if="tenant.trial_ends_at">
+                                <span class="text-gray-600">Trial Ends:</span>
+                                <span class="font-medium">{{ formatDate(tenant.trial_ends_at) }}</span>
+                            </div>
+                        </div>
+
                         <!-- Actions -->
                         <div class="flex justify-end gap-3">
                             <Button 
@@ -145,7 +176,7 @@
                             />
                             <Button 
                                 type="submit"
-                                label="Create Tenant" 
+                                label="Update Tenant" 
                                 :loading="form.processing"
                             />
                         </div>
@@ -166,27 +197,47 @@ import InputNumber from 'primevue/inputnumber';
 import Dropdown from 'primevue/dropdown';
 import Divider from 'primevue/divider';
 
+const props = defineProps({
+    tenant: Object,
+});
+
 const planOptions = [
     { label: 'Basic - $50/month', value: 'basic' },
     { label: 'Professional - $100/month', value: 'professional' },
     { label: 'Enterprise - $200/month', value: 'enterprise' },
 ];
 
+const statusOptions = [
+    { label: 'Trial', value: 'trial' },
+    { label: 'Active', value: 'active' },
+    { label: 'Suspended', value: 'suspended' },
+    { label: 'Cancelled', value: 'cancelled' },
+];
+
 const form = useForm({
-    name: '',
-    subdomain: '',
-    plan: 'basic',
-    trial_days: 30,
-    contact_name: '',
-    contact_email: '',
-    contact_phone: '',
+    name: props.tenant.name,
+    plan: props.tenant.plan,
+    status: props.tenant.status,
+    contact_name: props.tenant.contact_name,
+    contact_email: props.tenant.contact_email,
+    contact_phone: props.tenant.contact_phone,
+    mrr: props.tenant.mrr || 0,
 });
 
 const submit = () => {
-    form.post(route('admin.tenants.store'), {
+    form.put(route('admin.tenants.update', props.tenant.id), {
         onSuccess: () => {
             // Redirect handled by controller
         },
+    });
+};
+
+const formatDate = (date) => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
     });
 };
 </script>
