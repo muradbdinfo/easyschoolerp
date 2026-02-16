@@ -4,11 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 class TenantController extends Controller
 {
@@ -57,10 +55,6 @@ class TenantController extends Controller
             'contact_email' => 'required|email|max:255',
             'contact_phone' => 'nullable|string|max:20',
             'trial_days' => 'required|integer|min:0|max:90',
-            // New fields for admin user
-            'admin_name' => 'required|string|max:255',
-            'admin_email' => 'required|email|max:255|unique:users,email',
-            'admin_password' => 'required|string|min:8|confirmed',
         ]);
 
         try {
@@ -77,31 +71,19 @@ class TenantController extends Controller
                 'contact_email' => $validated['contact_email'],
                 'contact_phone' => $validated['contact_phone'],
                 'trial_ends_at' => now()->addDays($validated['trial_days']),
-                'active_modules' => ['procurement', 'assets'],
-            ]);
-
-            // Create default admin user for this tenant
-            $user = User::create([
-                'tenant_id' => $tenant->id,
-                'name' => $validated['admin_name'],
-                'email' => $validated['admin_email'],
-                'password' => Hash::make($validated['admin_password']),
-                'role' => 'admin', // or 'principal' based on your needs
-                'department' => 'Administration',
-                'branch' => 'Main',
-                'email_verified_at' => now(),
+                'active_modules' => ['procurement', 'assets'], // Default modules
             ]);
 
             // TODO: Create tenant database
             // TODO: Run migrations on tenant database
             // TODO: Seed initial data
-            // TODO: Send welcome email with credentials
+            // TODO: Send welcome email
 
             DB::commit();
 
             return redirect()
                 ->route('admin.tenants.index')
-                ->with('success', "Tenant '{$tenant->name}' created successfully! Admin user: {$user->email}");
+                ->with('success', 'Tenant created successfully!');
 
         } catch (\Exception $e) {
             DB::rollBack();

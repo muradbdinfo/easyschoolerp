@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ItemCategorySeeder::class);
         $this->call(ProcurementTestDataSeeder::class);
         $this->call(TenantSeeder::class);
+       $this->call(NotificationSeeder::class); 
         
 
         User::factory()->create([

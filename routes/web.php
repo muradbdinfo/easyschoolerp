@@ -57,7 +57,9 @@ Route::prefix('admin')
             ->name('tenants.suspend');
         Route::post('/tenants/{tenant}/activate', [TenantController::class, 'activate'])
             ->name('tenants.activate');
-        
+            
+        Route::post('/tenants/{tenant}/users', [TenantController::class, 'storeUser'])
+            ->name('tenants.users.store');
         // Future: Subscriptions, Payments, Modules, etc.
     });
 

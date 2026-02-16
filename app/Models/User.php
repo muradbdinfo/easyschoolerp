@@ -48,6 +48,11 @@ class User extends Authenticatable
         ];
     }
 
+      protected $appends = [
+        'unread_notification_count'
+    ];
+    
+
 // Inside User class:
 
 public function tenant(): BelongsTo

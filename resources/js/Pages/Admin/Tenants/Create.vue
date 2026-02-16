@@ -8,7 +8,7 @@
                             icon="pi pi-arrow-left" 
                             text 
                             rounded 
-                            @click="$inertia.visit(route('admin.tenants.index'))"
+                            @click="goBack"
                         />
                         <span>Create New Tenant</span>
                     </div>
@@ -135,13 +135,83 @@
 
                         <Divider />
 
+                        <!-- Admin User Account -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-900">Admin User Account</h3>
+                            <p class="text-sm text-gray-500">Create the first admin user for this tenant</p>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Admin Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText 
+                                    v-model="form.admin_name"
+                                    placeholder="e.g., John Smith"
+                                    class="w-full"
+                                    :invalid="!!form.errors.admin_name"
+                                />
+                                <small class="text-red-500" v-if="form.errors.admin_name">
+                                    {{ form.errors.admin_name }}
+                                </small>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Admin Email <span class="text-red-500">*</span>
+                                </label>
+                                <InputText 
+                                    v-model="form.admin_email"
+                                    type="email"
+                                    placeholder="admin@school.edu"
+                                    class="w-full"
+                                    :invalid="!!form.errors.admin_email"
+                                />
+                                <small class="text-red-500" v-if="form.errors.admin_email">
+                                    {{ form.errors.admin_email }}
+                                </small>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Password <span class="text-red-500">*</span>
+                                    </label>
+                                    <Password 
+                                        v-model="form.admin_password"
+                                        placeholder="Min 8 characters"
+                                        class="w-full"
+                                        :invalid="!!form.errors.admin_password"
+                                        toggleMask
+                                    />
+                                    <small class="text-red-500" v-if="form.errors.admin_password">
+                                        {{ form.errors.admin_password }}
+                                    </small>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Confirm Password <span class="text-red-500">*</span>
+                                    </label>
+                                    <Password 
+                                        v-model="form.admin_password_confirmation"
+                                        placeholder="Repeat password"
+                                        class="w-full"
+                                        :invalid="!!form.errors.admin_password_confirmation"
+                                        toggleMask
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <Divider />
+
                         <!-- Actions -->
                         <div class="flex justify-end gap-3">
                             <Button 
                                 label="Cancel" 
                                 severity="secondary" 
                                 outlined
-                                @click="$inertia.visit(route('admin.tenants.index'))"
+                                @click="goBack"
                             />
                             <Button 
                                 type="submit"
@@ -157,7 +227,7 @@
 </template>
 
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { useForm, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -165,6 +235,7 @@ import InputText from 'primevue/inputtext';
 import InputNumber from 'primevue/inputnumber';
 import Dropdown from 'primevue/dropdown';
 import Divider from 'primevue/divider';
+import Password from 'primevue/password';
 
 const planOptions = [
     { label: 'Basic - $50/month', value: 'basic' },
@@ -180,10 +251,19 @@ const form = useForm({
     contact_name: '',
     contact_email: '',
     contact_phone: '',
+    // Admin user fields
+    admin_name: '',
+    admin_email: '',
+    admin_password: '',
+    admin_password_confirmation: '',
 });
 
+const goBack = () => {
+    router.visit('/admin/tenants');
+};
+
 const submit = () => {
-    form.post(route('admin.tenants.store'), {
+    form.post('/admin/tenants', {
         onSuccess: () => {
             // Redirect handled by controller
         },

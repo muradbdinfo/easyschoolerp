@@ -8,7 +8,7 @@
                             icon="pi pi-arrow-left" 
                             text 
                             rounded 
-                            @click="goBack"
+                            @click="$inertia.visit(route('admin.tenants.index'))"
                         />
                         <span>Edit Tenant</span>
                     </div>
@@ -172,7 +172,7 @@
                                 label="Cancel" 
                                 severity="secondary" 
                                 outlined
-                                @click="goBack"
+                                @click="$inertia.visit(route('admin.tenants.index'))"
                             />
                             <Button 
                                 type="submit"
@@ -188,7 +188,7 @@
 </template>
 
 <script setup>
-import { useForm, router } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -224,12 +224,8 @@ const form = useForm({
     mrr: props.tenant.mrr || 0,
 });
 
-const goBack = () => {
-    router.visit('/admin/tenants');
-};
-
 const submit = () => {
-    form.put(`/admin/tenants/${props.tenant.id}`, {
+    form.put(route('admin.tenants.update', props.tenant.id), {
         onSuccess: () => {
             // Redirect handled by controller
         },
