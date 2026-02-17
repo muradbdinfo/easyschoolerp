@@ -19,16 +19,30 @@ class ItemController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Item::query()->with(['category', 'creator', 'updater']);
+        $query = Item::query()->with(['category']);
+
+        // Load creator/updater if relationships exist
+        if (method_exists(Item::class, 'creator')) {
+            $query->with(['creator', 'updater']);
+        }
 
         // Search
         if ($request->filled('search')) {
-            $query->search($request->search);
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('brand', 'like', "%{$search}%")
+                  ->orWhere('model', 'like', "%{$search}%");
+            });
         }
 
         // Filter by category
         if ($request->filled('category_id')) {
-            $query->byCategory($request->category_id);
+            $query->where('category_id', $request->category_id);
         }
 
         // Filter by type
@@ -45,10 +59,10 @@ class ItemController extends Controller
         if ($request->filled('stock_status')) {
             switch ($request->stock_status) {
                 case 'low':
-                    $query->lowStock();
+                    $query->whereColumn('current_stock', '<=', 'min_stock_level');
                     break;
                 case 'out':
-                    $query->outOfStock();
+                    $query->where('current_stock', '<=', 0);
                     break;
             }
         }
@@ -59,19 +73,54 @@ class ItemController extends Controller
         $query->orderBy($sortField, $sortOrder);
 
         $items = $query->paginate($request->get('per_page', 15))
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'code' => $item->code,
+                    'name' => $item->name,
+                    'description' => $item->description,
+                    'category' => $item->category ? [
+                        'id' => $item->category->id,
+                        'name' => $item->category->name,
+                    ] : null,
+                    'type' => $item->type,
+                    'type_label' => ucfirst($item->type),
+                    'unit' => $item->unit,
+                    'current_price' => $item->current_price,
+                    'current_stock' => $item->current_stock ?? 0,
+                    'reorder_level' => $item->reorder_level ?? 0,
+                    'min_stock_level' => $item->min_stock_level ?? 0,
+                    'max_stock_level' => $item->max_stock_level ?? 0,
+                    'status' => $item->status,
+                    'status_badge' => [
+                        'label' => ucfirst($item->status),
+                        'severity' => $item->status === 'active' ? 'success' : 
+                                    ($item->status === 'discontinued' ? 'danger' : 'warning')
+                    ],
+                    'stock_status' => $this->getStockStatus($item),
+                    'photo_url' => $item->photo ? Storage::url($item->photo) : null,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                ];
+            });
+
+        // Get categories
+        $categories = ItemCategory::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return Inertia::render('Tenant/Procurement/Items/Index', [
             'items' => $items,
-            'categories' => ItemCategory::active()->get(),
+            'categories' => $categories,
             'filters' => $request->only(['search', 'category_id', 'type', 'status', 'stock_status']),
             'stats' => [
                 'total' => Item::count(),
-                'active' => Item::active()->count(),
-                'low_stock' => Item::lowStock()->count(),
-                'out_of_stock' => Item::outOfStock()->count(),
-                'consumables' => Item::consumable()->count(),
-                'assets' => Item::asset()->count(),
+                'active' => Item::where('status', 'active')->count(),
+                'low_stock' => Item::whereColumn('current_stock', '<=', 'min_stock_level')->count(),
+                'out_of_stock' => Item::where('current_stock', '<=', 0)->count(),
+                'consumables' => Item::where('is_consumable', true)->count(),
+                'assets' => Item::where('is_asset', true)->count(),
             ]
         ]);
     }
@@ -81,8 +130,12 @@ class ItemController extends Controller
      */
     public function create(): Response
     {
+        $categories = ItemCategory::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
         return Inertia::render('Tenant/Procurement/Items/Create', [
-            'categories' => ItemCategory::active()->get(),
+            'categories' => $categories,
         ]);
     }
 
@@ -111,14 +164,24 @@ class ItemController extends Controller
      */
     public function show(Item $item): Response
     {
-        $item->load(['category', 'creator', 'updater']);
+        $item->load(['category']);
+
+        // Load creator/updater if relationships exist
+        if (method_exists($item, 'creator')) {
+            $item->load(['creator', 'updater']);
+        }
+
+        // Add photo URL
+        $itemData = $item->toArray();
+        $itemData['photo_url'] = $item->photo ? Storage::url($item->photo) : null;
+        $itemData['stock_status'] = $this->getStockStatus($item);
 
         return Inertia::render('Tenant/Procurement/Items/Show', [
-            'item' => $item,
+            'item' => $itemData,
             'stats' => [
-                'total_requisitions' => $item->requisitionItems()->count(),
-                'total_quantity_ordered' => $item->requisitionItems()->sum('quantity'),
-                'total_value' => $item->requisitionItems()->sum('total_amount'),
+                'total_requisitions' => 0, // Will be implemented in Week 5
+                'total_quantity_ordered' => 0,
+                'total_value' => 0,
             ]
         ]);
     }
@@ -128,9 +191,16 @@ class ItemController extends Controller
      */
     public function edit(Item $item): Response
     {
+        $categories = ItemCategory::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        $itemData = $item->toArray();
+        $itemData['photo_url'] = $item->photo ? Storage::url($item->photo) : null;
+
         return Inertia::render('Tenant/Procurement/Items/Edit', [
-            'item' => $item,
-            'categories' => ItemCategory::active()->get(),
+            'item' => $itemData,
+            'categories' => $categories,
         ]);
     }
 
@@ -163,9 +233,9 @@ class ItemController extends Controller
      */
     public function destroy(Item $item): RedirectResponse
     {
-        // Check if item has any requisitions
-        if ($item->requisitionItems()->exists()) {
-            return back()->with('error', 'Cannot delete item with existing requisitions.');
+        // Delete photo if exists
+        if ($item->photo) {
+            Storage::disk('public')->delete($item->photo);
         }
 
         $item->delete();
@@ -180,14 +250,18 @@ class ItemController extends Controller
      */
     public function search(Request $request)
     {
-        $query = Item::query()->active();
+        $query = Item::query()->where('status', 'active');
 
         if ($request->filled('q')) {
-            $query->search($request->q);
+            $search = $request->q;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
         }
 
         if ($request->filled('category_id')) {
-            $query->byCategory($request->category_id);
+            $query->where('category_id', $request->category_id);
         }
 
         $items = $query->limit(20)->get();
@@ -207,7 +281,7 @@ class ItemController extends Controller
         // This will be implemented with Maatwebsite\Excel
         // For now, return success
         
-        return back()->with('success', 'Items imported successfully.');
+        return back()->with('success', 'Items import feature coming soon.');
     }
 
     /**
@@ -218,7 +292,7 @@ class ItemController extends Controller
         $query = Item::query()->with('category');
 
         if ($request->filled('category_id')) {
-            $query->byCategory($request->category_id);
+            $query->where('category_id', $request->category_id);
         }
 
         if ($request->filled('status')) {
@@ -241,8 +315,38 @@ class ItemController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        $item->updateStock($request->quantity, $request->operation);
+        // Update stock based on operation
+        if ($request->operation === 'add') {
+            $item->current_stock = ($item->current_stock ?? 0) + $request->quantity;
+        } else {
+            $item->current_stock = max(0, ($item->current_stock ?? 0) - $request->quantity);
+        }
+
+        $item->save();
 
         return back()->with('success', 'Stock updated successfully.');
+    }
+
+    /**
+     * Helper method to get stock status.
+     */
+    private function getStockStatus($item): array
+    {
+        $currentStock = $item->current_stock ?? 0;
+        $reorderLevel = $item->reorder_level ?? 0;
+        $minLevel = $item->min_stock_level ?? 0;
+        $maxLevel = $item->max_stock_level ?? 0;
+
+        if ($currentStock <= 0) {
+            return ['label' => 'Out of Stock', 'severity' => 'danger'];
+        } elseif ($currentStock <= $reorderLevel) {
+            return ['label' => 'Reorder', 'severity' => 'warning'];
+        } elseif ($currentStock <= $minLevel) {
+            return ['label' => 'Low Stock', 'severity' => 'warning'];
+        } elseif ($maxLevel > 0 && $currentStock >= $maxLevel) {
+            return ['label' => 'Overstock', 'severity' => 'info'];
+        } else {
+            return ['label' => 'In Stock', 'severity' => 'success'];
+        }
     }
 }

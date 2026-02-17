@@ -17,16 +17,28 @@ class VendorController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Vendor::query()->with(['creator', 'updater']);
+        $query = Vendor::query();
+
+        // Load relationships if they exist
+        if (method_exists(Vendor::class, 'creator')) {
+            $query->with(['creator', 'updater']);
+        }
 
         // Search
         if ($request->filled('search')) {
-            $query->search($request->search);
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%")
+                  ->orWhere('contact_person', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
         }
 
         // Filter by type
         if ($request->filled('type')) {
-            $query->byType($request->type);
+            $query->where('type', $request->type);
         }
 
         // Filter by status
@@ -45,16 +57,37 @@ class VendorController extends Controller
         $query->orderBy($sortField, $sortOrder);
 
         $vendors = $query->paginate($request->get('per_page', 15))
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function ($vendor) {
+                return [
+                    'id' => $vendor->id,
+                    'code' => $vendor->code,
+                    'name' => $vendor->name,
+                    'type' => $vendor->type,
+                    'type_label' => ucfirst(str_replace('_', ' ', $vendor->type)),
+                    'contact_person' => $vendor->contact_person,
+                    'phone' => $vendor->phone,
+                    'email' => $vendor->email,
+                    'rating' => $vendor->rating ?? 0,
+                    'status' => $vendor->status,
+                    'status_badge' => [
+                        'label' => ucfirst($vendor->status),
+                        'severity' => $vendor->status === 'active' ? 'success' : 
+                                    ($vendor->status === 'blacklisted' ? 'danger' : 'warning')
+                    ],
+                    'created_at' => $vendor->created_at,
+                    'updated_at' => $vendor->updated_at,
+                ];
+            });
 
         return Inertia::render('Tenant/Procurement/Vendors/Index', [
             'vendors' => $vendors,
             'filters' => $request->only(['search', 'type', 'status', 'rating_min']),
             'stats' => [
                 'total' => Vendor::count(),
-                'active' => Vendor::active()->count(),
-                'blacklisted' => Vendor::blacklisted()->count(),
-                'suppliers' => Vendor::byType('supplier')->count(),
+                'active' => Vendor::where('status', 'active')->count(),
+                'blacklisted' => Vendor::where('status', 'blacklisted')->count(),
+                'suppliers' => Vendor::where('type', 'supplier')->count(),
             ]
         ]);
     }
@@ -77,14 +110,6 @@ class VendorController extends Controller
 
         $vendor = Vendor::create($data);
 
-        // Create notification
-        $this->createNotification(
-            'Vendor Created',
-            "New vendor {$vendor->name} ({$vendor->code}) has been created.",
-            'vendor_created',
-            $vendor
-        );
-
         return redirect()
             ->route('tenant.vendors.index')
             ->with('success', 'Vendor created successfully.');
@@ -95,16 +120,17 @@ class VendorController extends Controller
      */
     public function show(Vendor $vendor): Response
     {
-        $vendor->load(['creator', 'updater', 'purchaseOrders' => function($query) {
-            $query->latest()->take(10);
-        }]);
+        // Load relationships if they exist
+        if (method_exists($vendor, 'creator')) {
+            $vendor->load(['creator', 'updater']);
+        }
 
         return Inertia::render('Tenant/Procurement/Vendors/Show', [
             'vendor' => $vendor,
             'stats' => [
-                'total_orders' => $vendor->purchaseOrders()->count(),
-                'total_amount' => $vendor->purchaseOrders()->sum('total_amount'),
-                'pending_orders' => $vendor->purchaseOrders()->where('status', 'pending')->count(),
+                'total_orders' => 0, // Will be implemented in Week 5
+                'total_amount' => 0,
+                'pending_orders' => 0,
             ]
         ]);
     }
@@ -139,11 +165,6 @@ class VendorController extends Controller
      */
     public function destroy(Vendor $vendor): RedirectResponse
     {
-        // Check if vendor has any purchase orders
-        if ($vendor->purchaseOrders()->exists()) {
-            return back()->with('error', 'Cannot delete vendor with existing purchase orders.');
-        }
-
         $vendor->delete();
 
         return redirect()
@@ -160,14 +181,12 @@ class VendorController extends Controller
             'reason' => 'required|string|max:500',
         ]);
 
-        $vendor->blacklist($request->reason);
-
-        $this->createNotification(
-            'Vendor Blacklisted',
-            "Vendor {$vendor->name} has been blacklisted. Reason: {$request->reason}",
-            'vendor_blacklisted',
-            $vendor
-        );
+        // Update vendor status
+        $vendor->update([
+            'status' => 'blacklisted',
+            'blacklist_reason' => $request->reason,
+            'blacklisted_at' => now(),
+        ]);
 
         return back()->with('success', 'Vendor has been blacklisted.');
     }
@@ -177,7 +196,11 @@ class VendorController extends Controller
      */
     public function activate(Vendor $vendor): RedirectResponse
     {
-        $vendor->activate();
+        $vendor->update([
+            'status' => 'active',
+            'blacklist_reason' => null,
+            'blacklisted_at' => null,
+        ]);
 
         return back()->with('success', 'Vendor has been activated.');
     }
@@ -187,8 +210,6 @@ class VendorController extends Controller
      */
     public function export(Request $request)
     {
-        // This will be implemented with Maatwebsite\Excel
-        // For now, return JSON
         $query = Vendor::query();
 
         if ($request->filled('status')) {
@@ -198,14 +219,5 @@ class VendorController extends Controller
         $vendors = $query->get();
 
         return response()->json($vendors);
-    }
-
-    /**
-     * Helper method to create notifications
-     */
-    private function createNotification(string $title, string $message, string $type, $related = null): void
-    {
-        // NotificationService will be implemented in Week 3
-        // For now, this is a placeholder
     }
 }

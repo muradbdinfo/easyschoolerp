@@ -16,12 +16,18 @@ class ItemCategoryController extends Controller
      */
     public function index(): Response
     {
+        // Get all categories with relationships
         $categories = ItemCategory::with(['parent', 'children'])
-            ->rootCategories()
+            ->whereNull('parent_id') // Only root categories
+            ->orderBy('sort_order')
+            ->orderBy('name')
             ->get();
 
+        // Transform to format expected by frontend (recursive tree structure)
+        $transformedCategories = $this->transformToTree($categories);
+
         return Inertia::render('Tenant/Procurement/Categories/Index', [
-            'categories' => $categories,
+            'categories' => $this->getAllCategoriesFlat(), // For dropdown
         ]);
     }
 
@@ -33,9 +39,19 @@ class ItemCategoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:item_categories,id',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:1000',
             'sort_order' => 'nullable|integer|min:0',
+            'is_active' => 'boolean',
         ]);
+
+        // Set default values
+        if (!isset($validated['is_active'])) {
+            $validated['is_active'] = true;
+        }
+
+        if (!isset($validated['sort_order'])) {
+            $validated['sort_order'] = 0;
+        }
 
         ItemCategory::create($validated);
 
@@ -50,14 +66,21 @@ class ItemCategoryController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:item_categories,id',
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:1000',
             'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
         ]);
 
         // Prevent circular reference
-        if (isset($validated['parent_id']) && $validated['parent_id'] == $category->id) {
-            return back()->with('error', 'A category cannot be its own parent.');
+        if (isset($validated['parent_id'])) {
+            if ($validated['parent_id'] == $category->id) {
+                return back()->with('error', 'A category cannot be its own parent.');
+            }
+
+            // Check if new parent is a descendant of current category
+            if ($this->isDescendant($category->id, $validated['parent_id'])) {
+                return back()->with('error', 'Cannot move category under its own descendant.');
+            }
         }
 
         $category->update($validated);
@@ -71,13 +94,17 @@ class ItemCategoryController extends Controller
     public function destroy(ItemCategory $category): RedirectResponse
     {
         // Check if category has items
-        if ($category->items()->exists()) {
-            return back()->with('error', 'Cannot delete category with existing items.');
+        $itemCount = \DB::table('items')->where('category_id', $category->id)->count();
+        
+        if ($itemCount > 0) {
+            return back()->with('error', "Cannot delete category with {$itemCount} existing items.");
         }
 
         // Check if category has children
-        if ($category->hasChildren()) {
-            return back()->with('error', 'Cannot delete category with subcategories.');
+        $childrenCount = ItemCategory::where('parent_id', $category->id)->count();
+        
+        if ($childrenCount > 0) {
+            return back()->with('error', "Cannot delete category with {$childrenCount} subcategories.");
         }
 
         $category->delete();
@@ -90,20 +117,76 @@ class ItemCategoryController extends Controller
      */
     public function list(Request $request)
     {
-        $query = ItemCategory::query()->active();
+        $query = ItemCategory::query()->where('is_active', true);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', "%{$request->search}%");
         }
 
-        $categories = $query->get()->map(function($category) {
-            return [
-                'id' => $category->id,
-                'name' => $category->full_name,
-                'parent_id' => $category->parent_id,
-            ];
-        });
+        $categories = $query->orderBy('name')->get();
 
         return response()->json($categories);
+    }
+
+    /**
+     * Get all categories in flat array format.
+     */
+    private function getAllCategoriesFlat()
+    {
+        return ItemCategory::with('parent')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(function($category) {
+                return [
+                    'id' => $category->id,
+                    'code' => $category->code,
+                    'name' => $category->name,
+                    'parent_id' => $category->parent_id,
+                    'description' => $category->description,
+                    'sort_order' => $category->sort_order,
+                    'is_active' => $category->is_active,
+                    'created_at' => $category->created_at,
+                    'updated_at' => $category->updated_at,
+                ];
+            });
+    }
+
+    /**
+     * Transform categories to tree structure for TreeTable.
+     */
+    private function transformToTree($categories)
+    {
+        return $categories->map(function($category) {
+            return [
+                'key' => $category->id,
+                'data' => [
+                    'id' => $category->id,
+                    'code' => $category->code,
+                    'name' => $category->name,
+                    'description' => $category->description,
+                    'sort_order' => $category->sort_order,
+                    'is_active' => $category->is_active,
+                ],
+                'children' => $this->transformToTree($category->children),
+            ];
+        });
+    }
+
+    /**
+     * Check if a category is a descendant of another.
+     */
+    private function isDescendant($categoryId, $potentialParentId)
+    {
+        $category = ItemCategory::find($potentialParentId);
+        
+        while ($category) {
+            if ($category->id == $categoryId) {
+                return true;
+            }
+            $category = $category->parent;
+        }
+        
+        return false;
     }
 }

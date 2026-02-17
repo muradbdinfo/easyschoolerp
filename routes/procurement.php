@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 |
 | These routes are for the procurement module within tenant subdomains.
-| All routes use TenantMiddleware and auth middleware.
+| Uses standard 'web' guard with auth middleware.
 |
 */
 
-Route::middleware(['auth:tenant', 'tenant'])->prefix('procurement')->name('tenant.')->group(function () {
+Route::middleware(['auth'])->prefix('procurement')->name('tenant.')->group(function () {
     
     // Vendors
     Route::resource('vendors', VendorController::class);
