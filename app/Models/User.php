@@ -74,5 +74,13 @@ public function getUnreadNotificationCountAttribute(): int
 {
     return $this->unreadNotifications()->count();
 }
+
+
+// app/Models/User.php
+public function scopeActive($query)
+{
+    return $query->where('is_active', true);
+}
+
     
 }

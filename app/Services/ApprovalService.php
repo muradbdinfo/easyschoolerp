@@ -1,0 +1,229 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\PurchaseRequisition;
+use App\Models\User;
+use App\Notifications\ApprovalRequestNotification;
+use App\Notifications\ApprovalCompletedNotification;
+use App\Notifications\ApprovalRejectedNotification;
+
+class ApprovalService
+{
+    /**
+     * Approval thresholds (in BDT)
+     */
+    const LEVEL_1_THRESHOLD = 50000;  // Up to 50k: Department Head only
+    const LEVEL_2_THRESHOLD = 200000; // 50k-200k: + VP/Principal
+    const LEVEL_3_THRESHOLD = 500000; // 200k+: + Board
+
+    /**
+     * Determine approval levels required for a PR
+     */
+    public function determineApprovalLevels(PurchaseRequisition $pr): int
+    {
+        $amount = $pr->total_amount;
+
+        if ($amount <= self::LEVEL_1_THRESHOLD) {
+            return 1; // Department Head only
+        } elseif ($amount <= self::LEVEL_2_THRESHOLD) {
+            return 2; // Department Head + VP/Principal
+        } else {
+            return 3; // Department Head + VP/Principal + Board
+        }
+    }
+
+    /**
+     * Assign approvers to a PR
+     */
+    public function assignApprovers(PurchaseRequisition $pr): void
+    {
+        $levels = $this->determineApprovalLevels($pr);
+        $pr->required_approval_levels = $levels;
+
+        // Level 1: Department Head
+        $pr->level_1_approver_id = $pr->department->head_id;
+        $pr->level_1_status = 'pending';
+
+        // Level 2: VP or Principal (if required)
+        if ($levels >= 2) {
+            $pr->level_2_approver_id = $this->getVPOrPrincipal();
+            $pr->level_2_status = 'pending';
+        }
+
+        // Level 3: Board member (if required)
+        if ($levels >= 3) {
+            $pr->level_3_approver_id = $this->getBoardApprover();
+            $pr->level_3_status = 'pending';
+        }
+
+        $pr->save();
+    }
+
+    /**
+     * Submit PR for approval
+     */
+    public function submitForApproval(PurchaseRequisition $pr): void
+    {
+        // Assign approvers
+        $this->assignApprovers($pr);
+
+        // Update status
+        $pr->status = 'pending_level_1';
+        $pr->current_approval_level = 1;
+        $pr->save();
+
+        // Notify first approver (Department Head)
+        if ($pr->level1Approver) {
+            $pr->level1Approver->notify(new ApprovalRequestNotification($pr));
+        }
+
+        // Create notification record
+        $this->createNotification($pr, $pr->level1Approver);
+    }
+
+    /**
+     * Approve PR at current level
+     */
+    public function approve(PurchaseRequisition $pr, User $approver, ?string $comments = null): void
+    {
+        $currentLevel = $pr->current_approval_level;
+
+        // Update approval for current level
+        $pr->{"level_{$currentLevel}_approved_at"} = now();
+        $pr->{"level_{$currentLevel}_comments"} = $comments;
+        $pr->{"level_{$currentLevel}_status"} = 'approved';
+
+        // Add to approval history
+        $this->addToApprovalHistory($pr, $currentLevel, 'approved', $approver, $comments);
+
+        // Check if more approvals needed
+        if ($currentLevel < $pr->required_approval_levels) {
+            // Move to next level
+            $pr->current_approval_level = $currentLevel + 1;
+            $pr->status = "pending_level_{$pr->current_approval_level}";
+            $pr->save();
+
+            // Notify next approver
+            $nextApprover = $pr->{"level{$pr->current_approval_level}Approver"}();
+            if ($nextApprover) {
+                $nextApprover->notify(new ApprovalRequestNotification($pr));
+                $this->createNotification($pr, $nextApprover);
+            }
+        } else {
+            // All approvals complete
+            $pr->status = 'approved';
+            $pr->final_approved_at = now();
+            $pr->final_approved_by = $approver->id;
+            $pr->save();
+
+            // Notify requester
+            $pr->user->notify(new ApprovalCompletedNotification($pr));
+            $this->createNotification($pr, $pr->user, 'Your purchase requisition has been approved');
+        }
+    }
+
+    /**
+     * Reject PR
+     */
+    public function reject(PurchaseRequisition $pr, User $approver, string $reason): void
+    {
+        $currentLevel = $pr->current_approval_level;
+
+        // Update rejection for current level
+        $pr->{"level_{$currentLevel}_approved_at"} = now();
+        $pr->{"level_{$currentLevel}_comments"} = $reason;
+        $pr->{"level_{$currentLevel}_status"} = 'rejected';
+
+        // Update PR status
+        $pr->status = 'rejected';
+        $pr->rejection_reason = $reason;
+        $pr->rejected_at = now();
+        $pr->rejected_by = $approver->id;
+
+        // Add to approval history
+        $this->addToApprovalHistory($pr, $currentLevel, 'rejected', $approver, $reason);
+
+        $pr->save();
+
+        // Notify requester
+        $pr->user->notify(new ApprovalRejectedNotification($pr, $reason));
+        $this->createNotification($pr, $pr->user, "Your purchase requisition has been rejected: {$reason}");
+    }
+
+    /**
+     * Check if user can approve this PR
+     */
+    public function canApprove(PurchaseRequisition $pr, User $user): bool
+    {
+        $currentLevel = $pr->current_approval_level;
+        $approverId = $pr->{"level_{$currentLevel}_approver_id"};
+
+        return $approverId === $user->id 
+            && $pr->{"level_{$currentLevel}_status"} === 'pending'
+            && in_array($pr->status, ['pending_level_1', 'pending_level_2', 'pending_level_3']);
+    }
+
+    /**
+     * Add entry to approval history
+     */
+    private function addToApprovalHistory(
+        PurchaseRequisition $pr, 
+        int $level, 
+        string $action, 
+        User $approver, 
+        ?string $comments
+    ): void {
+        $history = $pr->approval_history ?? [];
+        
+        $history[] = [
+            'level' => $level,
+            'action' => $action,
+            'approver_id' => $approver->id,
+            'approver_name' => $approver->name,
+            'comments' => $comments,
+            'timestamp' => now()->toDateTimeString(),
+        ];
+
+        $pr->approval_history = $history;
+    }
+
+    /**
+     * Create notification record in database
+     */
+    private function createNotification(PurchaseRequisition $pr, User $user, ?string $customMessage = null): void
+    {
+        $message = $customMessage ?? "New purchase requisition {$pr->pr_number} requires your approval";
+
+        \App\Models\Notification::create([
+            'user_id' => $user->id,
+            'type' => 'approval_request',
+            'title' => 'Approval Required',
+            'message' => $message,
+            'action_url' => route('tenant.procurement.requisitions.show', $pr->id),
+            'related_type' => PurchaseRequisition::class,
+            'related_id' => $pr->id,
+        ]);
+    }
+
+    /**
+     * Get VP or Principal user (simplified - you'd have proper role checking)
+     */
+    private function getVPOrPrincipal(): ?int
+    {
+        // This should query for user with 'VP' or 'Principal' role
+        // For now, returning a placeholder
+        $vp = User::role(['VP', 'Principal'])->first();
+        return $vp?->id;
+    }
+
+    /**
+     * Get Board approver (simplified)
+     */
+    private function getBoardApprover(): ?int
+    {
+        // This should query for board member
+        $board = User::role('Board Member')->first();
+        return $board?->id;
+    }
+}

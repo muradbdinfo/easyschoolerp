@@ -1,271 +1,16 @@
-<template>
-    <div class="min-h-screen bg-gray-50 flex">
-        <!-- Toast Component -->
-        <Toast position="top-right" />
-        
-        <!-- Sidebar -->
-        <aside :class="['bg-white border-r border-gray-200 transition-all duration-300 shadow-sm', 
-                        sidebarCollapsed ? 'w-20' : 'w-64']">
-            <div class="flex flex-col h-full">
-                <!-- School Logo & Toggle -->
-                <div class="p-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <div v-if="!sidebarCollapsed" class="flex items-center gap-3">
-                            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                                {{ schoolInitials }}
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <h1 class="text-sm font-bold text-gray-900 truncate">{{ schoolName }}</h1>
-                                <p class="text-xs text-gray-500 truncate">{{ schoolSubdomain }}</p>
-                            </div>
-                        </div>
-                        <button 
-                            @click="toggleSidebar" 
-                            class="text-gray-400 hover:text-gray-600 transition"
-                        >
-                            <MenuIcon :size="20" v-if="sidebarCollapsed" />
-                            <X :size="20" v-else />
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Navigation Menu -->
-                <nav class="flex-1 p-4 overflow-y-auto">
-                    <div class="space-y-1">
-                        <Link
-                            v-for="item in menuItems"
-                            :key="item.route"
-                            :href="item.route"
-                            :class="[
-                                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group',
-                                isActive(item.route) 
-                                    ? 'bg-primary-50 text-primary-700 font-medium' 
-                                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                            ]"
-                        >
-                            <component 
-                                :is="item.icon" 
-                                :size="20" 
-                                class="flex-shrink-0"
-                                :class="isActive(item.route) ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-600'"
-                            />
-                            <span v-if="!sidebarCollapsed" class="flex-1">{{ item.label }}</span>
-                            <Badge 
-                                v-if="item.badge && !sidebarCollapsed" 
-                                :value="item.badge" 
-                                severity="danger" 
-                            />
-                        </Link>
-                    </div>
-
-                    <!-- Module Sections -->
-                    <div v-if="!sidebarCollapsed" class="mt-6">
-                        <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                            Modules
-                        </p>
-                        
-                        <!-- Procurement Module -->
-                        <div class="space-y-1 mb-4">
-                            <button 
-                                @click="toggleProcurement"
-                                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                            >
-                                <ShoppingCart :size="20" class="text-gray-400" />
-                                <span class="flex-1 text-left">Procurement</span>
-                                <ChevronDown 
-                                    :size="16" 
-                                    class="text-gray-400 transition-transform"
-                                    :class="{ 'rotate-180': procurementExpanded }"
-                                />
-                            </button>
-                            
-                            <div v-show="procurementExpanded" class="ml-8 space-y-1">
-                                <Link
-                                    v-for="subItem in procurementItems"
-                                    :key="subItem.route"
-                                    :href="subItem.route"
-                                    :class="[
-                                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
-                                        isActive(subItem.route)
-                                            ? 'bg-primary-50 text-primary-700 font-medium'
-                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                    ]"
-                                >
-                                    <component :is="subItem.icon" :size="16" />
-                                    <span>{{ subItem.label }}</span>
-                                    <Badge 
-                                        v-if="subItem.badge" 
-                                        :value="subItem.badge" 
-                                        severity="danger" 
-                                        class="ml-auto"
-                                    />
-                                </Link>
-                            </div>
-                        </div>
-
-                        <!-- Assets Module -->
-                        <div class="space-y-1">
-                            <button 
-                                @click="toggleAssets"
-                                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-                            >
-                                <Box :size="20" class="text-gray-400" />
-                                <span class="flex-1 text-left">Assets</span>
-                                <ChevronDown 
-                                    :size="16" 
-                                    class="text-gray-400 transition-transform"
-                                    :class="{ 'rotate-180': assetsExpanded }"
-                                />
-                            </button>
-                            
-                            <div v-show="assetsExpanded" class="ml-8 space-y-1">
-                                <Link
-                                    v-for="subItem in assetsItems"
-                                    :key="subItem.route"
-                                    :href="subItem.route"
-                                    :class="[
-                                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
-                                        isActive(subItem.route)
-                                            ? 'bg-primary-50 text-primary-700 font-medium'
-                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                    ]"
-                                >
-                                    <component :is="subItem.icon" :size="16" />
-                                    <span>{{ subItem.label }}</span>
-                                </Link>
-                            </div>
-                        </div>
-                    </div>
-                </nav>
-
-                <!-- User Section -->
-                <div class="p-4 border-t border-gray-200">
-                    <div v-if="!sidebarCollapsed">
-                        <div class="flex items-center gap-3">
-                            <Avatar 
-                                :label="userInitials" 
-                                shape="circle" 
-                                class="bg-primary-600"
-                            />
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-gray-900 truncate">{{ userName }}</p>
-                                <p class="text-xs text-gray-500 truncate">{{ userRole }}</p>
-                            </div>
-                            <button 
-                                @click="logout"
-                                class="text-gray-400 hover:text-gray-600 transition"
-                                title="Logout"
-                            >
-                                <LogOut :size="18" />
-                            </button>
-                        </div>
-                    </div>
-                    <div v-else class="flex justify-center">
-                        <Avatar 
-                            :label="userInitials" 
-                            shape="circle" 
-                            size="small"
-                            class="bg-primary-600"
-                        />
-                    </div>
-                </div>
-            </div>
-        </aside>
-        
-        <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-w-0">
-            <!-- Top Navbar -->
-            <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 flex-shrink-0">
-                <div class="flex items-center space-x-4">
-                    <Breadcrumb :model="breadcrumbItems" class="text-sm">
-                        <template #item="{ item }">
-                            <Link v-if="item.route" :href="item.route" class="text-primary-600 hover:text-primary-700">
-                                {{ item.label }}
-                            </Link>
-                            <span v-else class="text-gray-500">{{ item.label }}</span>
-                        </template>
-                    </Breadcrumb>
-                </div>
-                
-                <div class="flex items-center space-x-4">
-                    <!-- Branch Selector -->
-                    <Dropdown 
-                        v-model="selectedBranch" 
-                        :options="branches" 
-                        optionLabel="name" 
-                        placeholder="All Branches"
-                        class="w-48"
-                        @change="handleBranchChange"
-                    >
-                        <template #value="slotProps">
-                            <div v-if="slotProps.value" class="flex items-center gap-2">
-                                <Building :size="16" />
-                                <span>{{ slotProps.value.name }}</span>
-                            </div>
-                            <span v-else class="flex items-center gap-2">
-                                <Building :size="16" />
-                                Select Branch
-                            </span>
-                        </template>
-                    </Dropdown>
-
-                    <!-- Quick Actions -->
-                    <Button 
-                        icon="pi pi-plus" 
-                        label="New PR"
-                        size="small"
-                        @click="router.visit('/procurement/requisitions/create')"
-                    />
-
-                    <!-- Notifications -->
-                    <NotificationBell />
-                    
-                    <!-- Profile Dropdown -->
-                    <div class="relative">
-                        <button 
-                            @click="toggleProfileMenu"
-                            class="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-3 py-2 transition"
-                        >
-                            <Avatar 
-                                :label="userInitials" 
-                                shape="circle" 
-                                size="normal"
-                                class="bg-primary-600"
-                            />
-                            <div class="hidden md:block text-left">
-                                <p class="text-sm font-medium text-gray-900">{{ userName }}</p>
-                                <p class="text-xs text-gray-500">{{ userRole }}</p>
-                            </div>
-                            <ChevronDown :size="16" class="text-gray-400" />
-                        </button>
-                        
-                        <Menu ref="profileMenu" :model="profileMenuItems" :popup="true" />
-                    </div>
-                </div>
-            </header>
-            
-            <!-- Page Content -->
-            <main class="flex-1 p-6 overflow-auto bg-gray-50">
-                <slot />
-            </main>
-        </div>
-    </div>
-</template>
-
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import Toast from 'primevue/toast';
-import Avatar from 'primevue/avatar';
-import Badge from 'primevue/badge';
+import Toast      from 'primevue/toast';
+import Avatar     from 'primevue/avatar';
+import Badge      from 'primevue/badge';
 import Breadcrumb from 'primevue/breadcrumb';
-import Dropdown from 'primevue/dropdown';
-import Button from 'primevue/button';
-import Menu from 'primevue/menu';
-import NotificationBell from '@/Components/NotificationBell.vue';
-import { 
-    Menu as MenuIcon, 
-    X, 
+import Dropdown   from 'primevue/dropdown';
+import Button     from 'primevue/button';
+import Menu       from 'primevue/menu';
+import {
+    Menu        as MenuIcon,
+    X,
     Home,
     ShoppingCart,
     Box,
@@ -285,140 +30,551 @@ import {
     CheckSquare,
     LogOut,
     Building,
-    ChevronDown
+    Building2,
+    GitBranch,
+    ChevronDown,
+    Bell,
+    Search,
 } from 'lucide-vue-next';
 
+// ─── Props ────────────────────────────────────────────────────────────────────
 const props = defineProps({
-    schoolName: {
-        type: String,
-        default: 'My School'
-    },
-    schoolSubdomain: {
-        type: String,
-        default: 'myschool'
-    },
-    breadcrumbItems: {
-        type: Array,
-        default: () => [{ label: 'Dashboard', route: '/dashboard' }]
-    }
+    /** Array of { label, route? } objects for the top breadcrumb */
+    breadcrumbItems: { type: Array, default: () => [] },
+
+    /** Optional page title shown in the header */
+    title: { type: String, default: '' },
 });
 
+// ─── Page / auth ──────────────────────────────────────────────────────────────
 const page = usePage();
-const sidebarCollapsed = ref(false);
-const procurementExpanded = ref(true);
-const assetsExpanded = ref(true);
-const selectedBranch = ref(null);
-const profileMenu = ref();
 
-const branches = ref([
-    { name: 'All Branches', code: 'all' },
-    { name: 'Junior Branch', code: 'junior' },
-    { name: 'Middle Branch', code: 'middle' },
-    { name: 'Senior Branch', code: 'senior' },
-]);
-
-const toggleSidebar = () => {
-    sidebarCollapsed.value = !sidebarCollapsed.value;
-};
-
-const toggleProcurement = () => {
-    procurementExpanded.value = !procurementExpanded.value;
-};
-
-const toggleAssets = () => {
-    assetsExpanded.value = !assetsExpanded.value;
-};
-
-const toggleProfileMenu = (event) => {
-    profileMenu.value.toggle(event);
-};
-
-const handleBranchChange = () => {
-    console.log('Branch changed:', selectedBranch.value);
-};
-
-const isActive = (route) => {
-    return page.url.startsWith(route);
-};
-
-const userName = computed(() => page.props.auth?.user?.name || 'User');
-const userRole = computed(() => {
-    const role = page.props.auth?.user?.role || 'staff';
-    return role.charAt(0).toUpperCase() + role.slice(1);
+const user         = computed(() => page.props.auth?.user ?? {});
+const userName     = computed(() => user.value.name  ?? 'User');
+const userRole     = computed(() => {
+    const r = user.value.role ?? 'staff';
+    return r.charAt(0).toUpperCase() + r.slice(1);
 });
 const userInitials = computed(() => {
-    const name = userName.value;
-    const names = name.split(' ');
-    return names.length >= 2 
-        ? names[0][0] + names[names.length - 1][0]
-        : name.substring(0, 2).toUpperCase();
+    const parts = userName.value.trim().split(/\s+/);
+    return parts.length >= 2
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : userName.value.substring(0, 2).toUpperCase();
 });
 
-const schoolInitials = computed(() => {
-    const name = props.schoolName;
-    const words = name.split(' ');
-    return words.length >= 2 
-        ? words[0][0] + words[1][0]
-        : name.substring(0, 2).toUpperCase();
+const schoolName      = computed(() => page.props.school?.name      ?? 'My School');
+const schoolSubdomain = computed(() => page.props.school?.subdomain  ?? window.location.hostname.split('.')[0]);
+const schoolInitials  = computed(() => {
+    const w = schoolName.value.trim().split(/\s+/);
+    return w.length >= 2 ? (w[0][0] + w[1][0]).toUpperCase() : schoolName.value.substring(0, 2).toUpperCase();
 });
 
-const menuItems = ref([
-    { label: 'Dashboard', icon: Home, route: '/dashboard', badge: null },
-    { label: 'Reports', icon: BarChart3, route: '/reports', badge: null },
-    { label: 'Settings', icon: Settings, route: '/settings', badge: null },
-    { label: 'Help', icon: HelpCircle, route: '/help', badge: null },
-]);
+// ─── Notifications ────────────────────────────────────────────────────────────
+const unreadCount = computed(() => page.props.unreadNotificationsCount ?? 0);
 
-const procurementItems = ref([
-    { label: 'Vendors', icon: Users, route: '/procurement/vendors', badge: null },
-    { label: 'Items', icon: Tag, route: '/procurement/items', badge: null },
-    { label: 'Requisitions', icon: FileText, route: '/procurement/requisitions', badge: 3 },
-    { label: 'Purchase Orders', icon: Package, route: '/procurement/orders', badge: null },
-    { label: 'Goods Receipt', icon: Truck, route: '/procurement/grn', badge: null },
-]);
+// ─── Sidebar state ────────────────────────────────────────────────────────────
+const sidebarCollapsed    = ref(false);
+const mobileOpen          = ref(false);
+const procurementExpanded = ref(false);
+const assetsExpanded      = ref(false);
+const settingsExpanded    = ref(false);
 
-const assetsItems = ref([
-    { label: 'Register', icon: Boxes, route: '/assets/register', badge: null },
-    { label: 'Categories', icon: Folder, route: '/assets/categories', badge: null },
-    { label: 'Transfers', icon: MoveRight, route: '/assets/transfers', badge: null },
-    { label: 'Maintenance', icon: Wrench, route: '/assets/maintenance', badge: 2 },
-    { label: 'Depreciation', icon: TrendingDown, route: '/assets/depreciation', badge: null },
-    { label: 'Verification', icon: CheckSquare, route: '/assets/verification', badge: null },
-]);
+const toggleSidebar     = () => { sidebarCollapsed.value    = !sidebarCollapsed.value; };
+const toggleMobile      = () => { mobileOpen.value          = !mobileOpen.value; };
+const toggleProcurement = () => { procurementExpanded.value = !procurementExpanded.value; };
+const toggleAssets      = () => { assetsExpanded.value      = !assetsExpanded.value; };
+const toggleSettings    = () => { settingsExpanded.value    = !settingsExpanded.value; };
 
-const profileMenuItems = ref([
-    {
-        label: 'My Profile',
-        icon: 'pi pi-user',
-        command: () => {
-            router.visit('/profile');
-        }
-    },
-    {
-        label: 'My Requisitions',
-        icon: 'pi pi-file',
-        command: () => {
-            router.visit('/procurement/requisitions?filter=mine');
-        }
-    },
-    {
-        label: 'Settings',
-        icon: 'pi pi-cog',
-        command: () => {
-            router.visit('/settings');
-        }
-    },
-    {
-        separator: true
-    },
-    {
-        label: 'Logout',
-        icon: 'pi pi-sign-out',
-        command: logout
-    }
-]);
+// Auto-expand section that matches the current URL
+const currentUrl = page.url;
+if (currentUrl.startsWith('/procurement')) procurementExpanded.value = true;
+if (currentUrl.startsWith('/assets'))      assetsExpanded.value      = true;
+if (currentUrl.startsWith('/settings'))    settingsExpanded.value    = true;
 
-function logout() {
-    router.post('/logout');
-}
+/** Returns true when the current page URL starts with the given path */
+const isActive = (path) => page.url.startsWith(path);
+
+// Close mobile sidebar on navigation
+watch(() => page.url, () => { mobileOpen.value = false; });
+
+// ─── Branch selector ──────────────────────────────────────────────────────────
+const selectedBranch = ref(null);
+const branches       = computed(() => page.props.branches ?? []);
+
+// ─── Profile menu ─────────────────────────────────────────────────────────────
+const profileMenu = ref();
+const toggleProfileMenu  = (e) => profileMenu.value.toggle(e);
+const profileMenuItems   = [
+    { label: 'My Profile',      icon: 'pi pi-user',     command: () => router.visit('/profile') },
+    { label: 'My Requisitions', icon: 'pi pi-file',     command: () => router.visit('/procurement/requisitions?filter=mine') },
+    { separator: true },
+    { label: 'Logout',          icon: 'pi pi-sign-out', command: () => router.post('/logout') },
+];
+
+// ─── Navigation definitions ───────────────────────────────────────────────────
+const topMenuItems = [
+    { label: 'Dashboard', icon: Home,      route: '/dashboard' },
+    { label: 'Reports',   icon: BarChart3, route: '/reports'   },
+    { label: 'Help',      icon: HelpCircle,route: '/help'      },
+];
+
+const procurementItems = [
+    { label: 'Vendors',         icon: Users,    route: '/procurement/vendors',      badge: null },
+    { label: 'Items',           icon: Tag,      route: '/procurement/items',        badge: null },
+    { label: 'Requisitions',    icon: FileText, route: '/procurement/requisitions', badge: null },
+    { label: 'Purchase Orders', icon: Package,  route: '/procurement/orders',       badge: null },
+    { label: 'Goods Receipt',   icon: Truck,    route: '/procurement/grn',          badge: null },
+];
+
+const assetsItems = [
+    { label: 'Register',     icon: Boxes,       route: '/assets/register',    badge: null },
+    { label: 'Categories',   icon: Folder,      route: '/assets/categories',  badge: null },
+    { label: 'Transfers',    icon: MoveRight,   route: '/assets/transfers',   badge: null },
+    { label: 'Maintenance',  icon: Wrench,      route: '/assets/maintenance', badge: null },
+    { label: 'Depreciation', icon: TrendingDown,route: '/assets/depreciation',badge: null },
+    { label: 'Verification', icon: CheckSquare, route: '/assets/verification',badge: null },
+];
+
+const settingsItems = [
+    { label: 'Departments', icon: Building2, route: '/settings/departments' },
+    { label: 'Branches',    icon: GitBranch, route: '/settings/branches'   },
+];
 </script>
+
+<template>
+    <div class="min-h-screen bg-gray-50 flex">
+        <Toast position="top-right" />
+
+        <!-- ══════════════════════════════════════════════════════════════
+             MOBILE OVERLAY
+             ══════════════════════════════════════════════════════════════ -->
+        <transition name="fade">
+            <div
+                v-if="mobileOpen"
+                class="fixed inset-0 bg-black/40 z-20 lg:hidden"
+                @click="mobileOpen = false"
+            />
+        </transition>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             SIDEBAR
+             ══════════════════════════════════════════════════════════════ -->
+        <aside
+            :class="[
+                'fixed lg:relative inset-y-0 left-0 z-30',
+                'bg-white border-r border-gray-200 shadow-sm',
+                'flex flex-col transition-all duration-300',
+                // Desktop width
+                sidebarCollapsed ? 'lg:w-[72px]' : 'lg:w-64',
+                // Mobile: slide in/out
+                mobileOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full lg:translate-x-0',
+            ]"
+        >
+            <div class="flex flex-col h-screen">
+
+                <!-- ── Logo + collapse toggle ── -->
+                <div class="h-16 px-4 border-b border-gray-100 flex items-center justify-between gap-2 flex-shrink-0">
+                    <div v-if="!sidebarCollapsed || mobileOpen" class="flex items-center gap-3 min-w-0">
+                        <div
+                            class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700
+                                   flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                        >
+                            {{ schoolInitials }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-gray-900 truncate">{{ schoolName }}</p>
+                            <p class="text-xs text-gray-400 truncate">{{ schoolSubdomain }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Collapsed: just show initials block -->
+                    <div v-else class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700
+                                       flex items-center justify-center text-white font-bold text-sm">
+                        {{ schoolInitials }}
+                    </div>
+
+                    <!-- Toggle button (desktop only) -->
+                    <button
+                        @click="toggleSidebar"
+                        class="hidden lg:flex text-gray-400 hover:text-gray-600 transition flex-shrink-0"
+                        :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+                    >
+                        <X        :size="20" v-if="!sidebarCollapsed" />
+                        <MenuIcon :size="20" v-else />
+                    </button>
+
+                    <!-- Close button (mobile only) -->
+                    <button
+                        @click="mobileOpen = false"
+                        class="lg:hidden text-gray-400 hover:text-gray-600 transition flex-shrink-0"
+                    >
+                        <X :size="20" />
+                    </button>
+                </div>
+
+                <!-- ── Navigation ── -->
+                <nav class="flex-1 p-3 overflow-y-auto space-y-0.5">
+
+                    <!-- Top-level items -->
+                    <Link
+                        v-for="item in topMenuItems"
+                        :key="item.route"
+                        :href="item.route"
+                        :title="sidebarCollapsed ? item.label : undefined"
+                        :class="[
+                            'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group',
+                            isActive(item.route)
+                                ? 'bg-blue-50 text-blue-700 font-medium'
+                                : 'text-gray-700 hover:bg-gray-50',
+                        ]"
+                    >
+                        <component
+                            :is="item.icon"
+                            :size="19"
+                            class="flex-shrink-0"
+                            :class="isActive(item.route) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'"
+                        />
+                        <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+                    </Link>
+
+                    <!-- ── MODULES section ── -->
+                    <div class="pt-3">
+                        <p
+                            v-if="!sidebarCollapsed"
+                            class="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1"
+                        >
+                            Modules
+                        </p>
+
+                        <!-- PROCUREMENT -->
+                        <button
+                            @click="toggleProcurement"
+                            :title="sidebarCollapsed ? 'Procurement' : undefined"
+                            :class="[
+                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all',
+                                isActive('/procurement')
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'text-gray-700 hover:bg-gray-50',
+                            ]"
+                        >
+                            <ShoppingCart
+                                :size="19"
+                                class="flex-shrink-0"
+                                :class="isActive('/procurement') ? 'text-blue-600' : 'text-gray-400'"
+                            />
+                            <span v-if="!sidebarCollapsed" class="flex-1 text-left text-sm">Procurement</span>
+                            <ChevronDown
+                                v-if="!sidebarCollapsed"
+                                :size="15"
+                                class="text-gray-400 transition-transform duration-200"
+                                :class="{ 'rotate-180': procurementExpanded }"
+                            />
+                        </button>
+
+                        <transition name="slide">
+                            <div v-show="!sidebarCollapsed && procurementExpanded" class="ml-7 mt-0.5 space-y-0.5">
+                                <Link
+                                    v-for="sub in procurementItems"
+                                    :key="sub.route"
+                                    :href="sub.route"
+                                    :class="[
+                                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
+                                        isActive(sub.route)
+                                            ? 'bg-blue-50 text-blue-700 font-medium'
+                                            : 'text-gray-600 hover:bg-gray-50',
+                                    ]"
+                                >
+                                    <component :is="sub.icon" :size="15" class="flex-shrink-0" />
+                                    <span class="flex-1">{{ sub.label }}</span>
+                                    <Badge v-if="sub.badge" :value="sub.badge" severity="danger" />
+                                </Link>
+                            </div>
+                        </transition>
+
+                        <!-- ASSETS -->
+                        <button
+                            @click="toggleAssets"
+                            :title="sidebarCollapsed ? 'Assets' : undefined"
+                            :class="[
+                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all mt-0.5',
+                                isActive('/assets')
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'text-gray-700 hover:bg-gray-50',
+                            ]"
+                        >
+                            <Box
+                                :size="19"
+                                class="flex-shrink-0"
+                                :class="isActive('/assets') ? 'text-blue-600' : 'text-gray-400'"
+                            />
+                            <span v-if="!sidebarCollapsed" class="flex-1 text-left text-sm">Assets</span>
+                            <ChevronDown
+                                v-if="!sidebarCollapsed"
+                                :size="15"
+                                class="text-gray-400 transition-transform duration-200"
+                                :class="{ 'rotate-180': assetsExpanded }"
+                            />
+                        </button>
+
+                        <transition name="slide">
+                            <div v-show="!sidebarCollapsed && assetsExpanded" class="ml-7 mt-0.5 space-y-0.5">
+                                <Link
+                                    v-for="sub in assetsItems"
+                                    :key="sub.route"
+                                    :href="sub.route"
+                                    :class="[
+                                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
+                                        isActive(sub.route)
+                                            ? 'bg-blue-50 text-blue-700 font-medium'
+                                            : 'text-gray-600 hover:bg-gray-50',
+                                    ]"
+                                >
+                                    <component :is="sub.icon" :size="15" class="flex-shrink-0" />
+                                    <span class="flex-1">{{ sub.label }}</span>
+                                    <Badge v-if="sub.badge" :value="sub.badge" severity="danger" />
+                                </Link>
+                            </div>
+                        </transition>
+
+                        <!-- SETTINGS -->
+                        <button
+                            @click="toggleSettings"
+                            :title="sidebarCollapsed ? 'Settings' : undefined"
+                            :class="[
+                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all mt-0.5',
+                                isActive('/settings')
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'text-gray-700 hover:bg-gray-50',
+                            ]"
+                        >
+                            <Settings
+                                :size="19"
+                                class="flex-shrink-0"
+                                :class="isActive('/settings') ? 'text-blue-600' : 'text-gray-400'"
+                            />
+                            <span v-if="!sidebarCollapsed" class="flex-1 text-left text-sm">Settings</span>
+                            <ChevronDown
+                                v-if="!sidebarCollapsed"
+                                :size="15"
+                                class="text-gray-400 transition-transform duration-200"
+                                :class="{ 'rotate-180': settingsExpanded }"
+                            />
+                        </button>
+
+                        <transition name="slide">
+                            <div v-show="!sidebarCollapsed && settingsExpanded" class="ml-7 mt-0.5 space-y-0.5">
+                                <Link
+                                    v-for="sub in settingsItems"
+                                    :key="sub.route"
+                                    :href="sub.route"
+                                    :class="[
+                                        'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
+                                        isActive(sub.route)
+                                            ? 'bg-blue-50 text-blue-700 font-medium'
+                                            : 'text-gray-600 hover:bg-gray-50',
+                                    ]"
+                                >
+                                    <component :is="sub.icon" :size="15" class="flex-shrink-0" />
+                                    <span>{{ sub.label }}</span>
+                                </Link>
+                            </div>
+                        </transition>
+                    </div>
+                </nav>
+
+                <!-- ── User section (bottom) ── -->
+                <div class="p-3 border-t border-gray-100 flex-shrink-0">
+                    <div v-if="!sidebarCollapsed" class="flex items-center gap-3">
+                        <Avatar
+                            :label="userInitials"
+                            shape="circle"
+                            size="normal"
+                            class="!bg-blue-600 !text-white flex-shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-gray-900 truncate">{{ userName }}</p>
+                            <p class="text-xs text-gray-400 truncate">{{ userRole }}</p>
+                        </div>
+                        <button
+                            @click="router.post('/logout')"
+                            title="Logout"
+                            class="text-gray-400 hover:text-red-500 transition"
+                        >
+                            <LogOut :size="17" />
+                        </button>
+                    </div>
+                    <div v-else class="flex justify-center">
+                        <Avatar
+                            :label="userInitials"
+                            shape="circle"
+                            size="small"
+                            class="!bg-blue-600 !text-white"
+                        />
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             MAIN AREA
+             ══════════════════════════════════════════════════════════════ -->
+        <div class="flex-1 flex flex-col min-w-0 lg:ml-0">
+
+            <!-- ── Top Navbar ── -->
+            <header
+                class="bg-white border-b border-gray-200 h-16 flex items-center
+                       justify-between px-4 lg:px-6 flex-shrink-0 gap-4 sticky top-0 z-10"
+            >
+                <!-- Left: mobile menu + breadcrumb -->
+                <div class="flex items-center gap-3 min-w-0 flex-1">
+                    <!-- Mobile hamburger -->
+                    <button
+                        @click="toggleMobile"
+                        class="lg:hidden text-gray-500 hover:text-gray-700 transition flex-shrink-0"
+                    >
+                        <MenuIcon :size="22" />
+                    </button>
+
+                    <!-- Breadcrumb -->
+                    <Breadcrumb
+                        :model="breadcrumbItems"
+                        class="text-sm p-0 bg-transparent border-none flex-1 min-w-0 hidden sm:block"
+                    >
+                        <template #item="{ item }">
+                            <Link
+                                v-if="item.route"
+                                :href="item.route"
+                                class="text-blue-600 hover:text-blue-700 text-sm"
+                            >
+                                {{ item.label }}
+                            </Link>
+                            <span v-else class="text-gray-500 text-sm">{{ item.label }}</span>
+                        </template>
+                        <template #separator>
+                            <span class="text-gray-300 mx-1">/</span>
+                        </template>
+                    </Breadcrumb>
+
+                    <!-- Mobile: page title fallback -->
+                    <span v-if="title" class="sm:hidden text-sm font-semibold text-gray-800 truncate">
+                        {{ title }}
+                    </span>
+                </div>
+
+                <!-- Right: actions -->
+                <div class="flex items-center gap-2 lg:gap-3 flex-shrink-0">
+
+                    <!-- Branch selector -->
+                    <Dropdown
+                        v-model="selectedBranch"
+                        :options="branches.length ? branches : [{ name: 'All Branches', id: null }]"
+                        optionLabel="name"
+                        placeholder="All Branches"
+                        class="hidden md:flex w-44 text-sm"
+                    >
+                        <template #value="{ value }">
+                            <div class="flex items-center gap-2">
+                                <Building :size="15" class="text-gray-400" />
+                                <span>{{ value?.name ?? 'All Branches' }}</span>
+                            </div>
+                        </template>
+                        <template #option="{ option }">
+                            <div class="flex items-center gap-2">
+                                <Building :size="14" class="text-gray-400" />
+                                <span>{{ option.name }}</span>
+                            </div>
+                        </template>
+                    </Dropdown>
+
+                    <!-- New PR shortcut -->
+                    <Button
+                        label="New PR"
+                        icon="pi pi-plus"
+                        size="small"
+                        class="hidden sm:flex"
+                        @click="router.visit('/procurement/requisitions/create')"
+                    />
+
+                    <!-- Notifications -->
+                    <Link
+                        href="/notifications"
+                        class="relative text-gray-500 hover:text-gray-700 transition p-2 rounded-lg hover:bg-gray-50"
+                        title="Notifications"
+                    >
+                        <Bell :size="20" />
+                        <span
+                            v-if="unreadCount > 0"
+                            class="absolute top-1 right-1 min-w-[18px] h-[18px] flex items-center justify-center
+                                   bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none"
+                        >
+                            {{ unreadCount > 99 ? '99+' : unreadCount }}
+                        </span>
+                    </Link>
+
+                    <!-- Profile dropdown -->
+                    <button
+                        @click="toggleProfileMenu"
+                        class="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-2 py-1.5 transition"
+                    >
+                        <Avatar
+                            :label="userInitials"
+                            shape="circle"
+                            size="normal"
+                            class="!bg-blue-600 !text-white"
+                        />
+                        <div class="hidden md:block text-left">
+                            <p class="text-sm font-semibold text-gray-900 leading-tight">{{ userName }}</p>
+                            <p class="text-xs text-gray-400 leading-tight">{{ userRole }}</p>
+                        </div>
+                        <ChevronDown :size="15" class="text-gray-400" />
+                    </button>
+                    <Menu ref="profileMenu" :model="profileMenuItems" :popup="true" />
+
+                </div>
+            </header>
+
+            <!-- ── Page content ── -->
+            <main class="flex-1 p-4 lg:p-6 overflow-auto">
+                <!-- Optional page heading slot -->
+                <div v-if="title" class="mb-6">
+                    <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+                </div>
+
+                <slot />
+            </main>
+
+        </div>
+    </div>
+</template>
+
+<style scoped>
+/* Sidebar slide transition for sub-menus */
+.slide-enter-active,
+.slide-leave-active {
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+.slide-enter-from,
+.slide-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+}
+.slide-enter-to,
+.slide-leave-from {
+    opacity: 1;
+    max-height: 400px;
+    transform: translateY(0);
+}
+
+/* Mobile overlay fade */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+</style>
