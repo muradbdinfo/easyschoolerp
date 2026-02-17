@@ -159,26 +159,26 @@ class ApprovalService
         $pr->approval_history = $history;
     }
 
-    private function createNotification(PurchaseRequisition $pr, ?User $user, ?string $customMessage = null): void
-    {
-        if (!$user) return;
+private function createNotification(PurchaseRequisition $pr, ?User $user, ?string $customMessage = null): void
+{
+    if (!$user) return;
 
-        $message = $customMessage ?? "Purchase requisition {$pr->pr_number} requires your approval";
+    $message = $customMessage ?? "Purchase requisition {$pr->pr_number} requires your approval";
 
-        try {
-            \App\Models\Notification::create([
-                'user_id'      => $user->id,
-                'type'         => 'approval_request',
-                'title'        => 'Approval Required',
-                'message'      => $message,
-                'action_url'   => route('tenant.procurement.requisitions.show', $pr->id),
-                'related_type' => PurchaseRequisition::class,
-                'related_id'   => $pr->id,
-            ]);
-        } catch (\Exception $e) {
-            \Log::warning('createNotification failed: ' . $e->getMessage());
-        }
+    try {
+        \App\Models\Notification::create([
+            'user_id'      => $user->id,
+            'type'         => 'approval_request',
+            'title'        => 'Approval Required',
+            'message'      => $message,
+            'action_url'   => route('tenant.requisitions.show', $pr->id), // ✅ FIXED
+            'related_type' => PurchaseRequisition::class,
+            'related_id'   => $pr->id,
+        ]);
+    } catch (\Exception $e) {
+        \Log::warning('createNotification failed: ' . $e->getMessage());
     }
+}
 
     private function getVPOrPrincipal(): ?int
     {

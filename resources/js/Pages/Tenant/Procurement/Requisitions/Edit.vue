@@ -5,73 +5,86 @@ import axios from 'axios';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 
-// PrimeVue components
-import TenantLayout from '@/Layouts/TenantLayout.vue';
-import Steps from 'primevue/steps';
-import Card from 'primevue/card';
-import Divider from 'primevue/divider';
-import Select from 'primevue/select';
-import SelectButton from 'primevue/selectbutton';
-import InputText from 'primevue/inputtext';
-import Textarea from 'primevue/textarea';
-import FileUpload from 'primevue/fileupload';
-import AutoComplete from 'primevue/autocomplete';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import InputNumber from 'primevue/inputnumber';
-import Button from 'primevue/button';
-import ConfirmDialog from 'primevue/confirmdialog';
-import DatePicker from 'primevue/datepicker';
+import TenantLayout    from '@/Layouts/TenantLayout.vue';
+import Steps           from 'primevue/steps';
+import Card            from 'primevue/card';
+import Divider         from 'primevue/divider';
+import Select          from 'primevue/select';
+import SelectButton    from 'primevue/selectbutton';
+import InputText       from 'primevue/inputtext';
+import Textarea        from 'primevue/textarea';
+import FileUpload      from 'primevue/fileupload';
+import AutoComplete    from 'primevue/autocomplete';
+import DataTable       from 'primevue/datatable';
+import Column          from 'primevue/column';
+import InputNumber     from 'primevue/inputnumber';
+import Button          from 'primevue/button';
+import ConfirmDialog   from 'primevue/confirmdialog';
+import DatePicker      from 'primevue/datepicker';
+import Tag             from 'primevue/tag';
 
-// Lucide icons
 import {
     CalendarDays as CalendarIcon,
     Package,
     FileText as FileTextIcon,
     Eye,
     Upload,
+    Pencil,
+    Trash2,
+    ArrowLeft,
 } from 'lucide-vue-next';
 
 // ─────────────────────────────────────────────
 // Props
 // ─────────────────────────────────────────────
 const props = defineProps({
-    departments: { type: Array, default: () => [] },
-    branches:    { type: Array, default: () => [] },
+    requisition: { type: Object, required: true },
+    departments: { type: Array,  default: () => [] },
+    branches:    { type: Array,  default: () => [] },
     errors:      { type: Object, default: () => ({}) },
 });
 
-// ─────────────────────────────────────────────
-// Composables
-// ─────────────────────────────────────────────
 const toast   = useToast();
 const confirm = useConfirm();
 
 // ─────────────────────────────────────────────
-// Steps config
+// Steps
 // ─────────────────────────────────────────────
 const activeStep = ref(0);
 const steps = [
     { label: 'Basic Information' },
-    { label: 'Add Items'         },
+    { label: 'Items'             },
     { label: 'Justification'     },
     { label: 'Review & Submit'   },
 ];
 
 // ─────────────────────────────────────────────
-// Main form state
+// Pre-populate form from existing requisition
 // ─────────────────────────────────────────────
 const form = reactive({
-    department_id:    null,
-    branch_id:        null,
-    required_by_date: null,
-    priority:         'medium',
-    purpose:          '',
-    justification:    '',
-    notes:            '',
-    items:            [],
-    attachments:      [],
-    status:           'draft',
+    department_id:    props.requisition.department_id,
+    branch_id:        props.requisition.branch_id,
+    required_by_date: props.requisition.required_by_date
+        ? new Date(props.requisition.required_by_date)
+        : null,
+    priority:      props.requisition.priority      ?? 'medium',
+    purpose:       props.requisition.purpose       ?? '',
+    justification: props.requisition.justification ?? '',
+    notes:         props.requisition.notes         ?? '',
+    items: (props.requisition.items ?? []).map(i => ({
+        item_id:              i.item_id,
+        item_code:            i.item_code,
+        item_name:            i.item_name,
+        item_description:     i.item_description ?? '',
+        unit:                 i.unit,
+        quantity:             Number(i.quantity),
+        estimated_unit_price: Number(i.estimated_unit_price),
+        specifications:       i.specifications ?? '',
+        estimated_total:      Number(i.quantity) * Number(i.estimated_unit_price),
+    })),
+    attachments:     [],
+    keepAttachments: props.requisition.attachments ?? [],  // existing server attachments
+    status:          'draft',
 });
 
 const priorityOptions = [
@@ -82,7 +95,7 @@ const priorityOptions = [
 ];
 
 // ─────────────────────────────────────────────
-// Item search state
+// Item search
 // ─────────────────────────────────────────────
 const itemSearchResults = ref([]);
 const selectedItem      = ref(null);
@@ -91,62 +104,17 @@ const itemPrice         = ref(0);
 const itemSpecs         = ref('');
 const isSearching       = ref(false);
 
-// ─────────────────────────────────────────────
-// Submit / auto-save state
-// ─────────────────────────────────────────────
-const autoSaveInterval  = ref(null);
-const lastSavedAt       = ref(null);
-const draftPRId         = ref(null);   // tracks the autosave draft record id
-const isSubmitting      = ref(false);  // guards manual save / submit buttons
-const isAutoSaving      = ref(false);  // guards the autosave interval so it never overlaps
-
-// ─────────────────────────────────────────────
-// Computed
-// ─────────────────────────────────────────────
-const totalAmount = computed(() =>
-    form.items.reduce((sum, item) => sum + (item.quantity * item.estimated_unit_price), 0)
-);
-
-const purposeCharCount = computed(() => form.purpose?.length || 0);
-
-const isStep1Valid = computed(() =>
-    !!form.department_id && !!form.branch_id && !!form.required_by_date && !!form.priority
-);
-const isStep2Valid = computed(() => form.items.length > 0);
-const isStep3Valid = computed(() => form.purpose?.trim()?.length >= 20);
-
-const hasUnsavedChanges = computed(() =>
-    !!form.department_id || !!form.branch_id || form.items.length > 0
-);
-
-// ─────────────────────────────────────────────
-// Item helpers
-// ─────────────────────────────────────────────
 const searchItems = async (event) => {
-    if (!event.query || event.query.length < 2) {
-        itemSearchResults.value = [];
-        return;
-    }
-
+    if (!event.query || event.query.length < 2) { itemSearchResults.value = []; return; }
     isSearching.value = true;
-    const url = route('tenant.requisitions.search.items');
-
     try {
-        const { data } = await axios.get(url, { params: { query: event.query } });
-
-        if (data._debug) {
-            console.error('[searchItems] Server debug:', data._debug);
-            itemSearchResults.value = [];
-            toast.add({ severity: 'error', summary: 'Search Error', detail: 'Item search failed: ' + data._debug, life: 5000 });
-            return;
-        }
-
+        const { data } = await axios.get(route('tenant.requisitions.search.items'), {
+            params: { query: event.query },
+        });
         itemSearchResults.value = Array.isArray(data) ? data : [];
-
-    } catch (err) {
-        console.error('[searchItems] ERROR:', err?.response?.status, err?.response?.data ?? err.message);
+    } catch {
         itemSearchResults.value = [];
-        toast.add({ severity: 'error', summary: 'Error', detail: `Failed to search items (${err?.response?.status ?? 'network'})`, life: 4000 });
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to search items', life: 3000 });
     } finally {
         isSearching.value = false;
     }
@@ -162,10 +130,9 @@ const addItem = () => {
         return;
     }
     if (form.items.find(i => i.item_id === selectedItem.value.id)) {
-        toast.add({ severity: 'warn', summary: 'Warning', detail: 'This item is already in the list', life: 3000 });
+        toast.add({ severity: 'warn', summary: 'Warning', detail: 'Item already in list', life: 3000 });
         return;
     }
-
     const price = itemPrice.value || selectedItem.value.unit_price || 0;
     form.items.push({
         item_id:              selectedItem.value.id,
@@ -178,18 +145,16 @@ const addItem = () => {
         specifications:       itemSpecs.value || '',
         estimated_total:      itemQuantity.value * price,
     });
-
-    selectedItem.value      = null;
-    itemQuantity.value      = 1;
-    itemPrice.value         = 0;
-    itemSpecs.value         = '';
+    selectedItem.value = null;
+    itemQuantity.value = 1;
+    itemPrice.value    = 0;
+    itemSpecs.value    = '';
     itemSearchResults.value = [];
-    toast.add({ severity: 'success', summary: 'Added', detail: 'Item added to list', life: 2000 });
+    toast.add({ severity: 'success', summary: 'Added', detail: 'Item added', life: 2000 });
 };
 
 const removeItem = (index) => {
     form.items.splice(index, 1);
-    toast.add({ severity: 'info', summary: 'Removed', detail: 'Item removed', life: 2000 });
 };
 
 const updateItemTotal = (item) => {
@@ -197,16 +162,50 @@ const updateItemTotal = (item) => {
 };
 
 // ─────────────────────────────────────────────
-// File upload
+// Existing attachment removal
 // ─────────────────────────────────────────────
-const onFileSelect = (event) => {
-    form.attachments = event.files || [];
+const removeExistingAttachment = (index) => {
+    confirm.require({
+        message: 'Remove this attachment?',
+        header:  'Remove Attachment',
+        icon:    'pi pi-exclamation-triangle',
+        accept: async () => {
+            try {
+                await axios.delete(
+                    route('tenant.requisitions.attachments.delete', {
+                        requisition: props.requisition.id,
+                        index,
+                    })
+                );
+                form.keepAttachments.splice(index, 1);
+                toast.add({ severity: 'info', summary: 'Removed', detail: 'Attachment removed', life: 2000 });
+            } catch {
+                toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to remove attachment', life: 3000 });
+            }
+        },
+    });
 };
 
+// New file selections
+const onFileSelect = (event) => { form.attachments = event.files || []; };
 const onFileRemove = (event) => {
     const idx = form.attachments.indexOf(event.file);
     if (idx > -1) form.attachments.splice(idx, 1);
 };
+
+// ─────────────────────────────────────────────
+// Computed
+// ─────────────────────────────────────────────
+const totalAmount = computed(() =>
+    form.items.reduce((sum, i) => sum + (i.quantity * i.estimated_unit_price), 0)
+);
+const purposeCharCount = computed(() => form.purpose?.length || 0);
+
+const isStep1Valid = computed(() =>
+    !!form.department_id && !!form.branch_id && !!form.required_by_date && !!form.priority
+);
+const isStep2Valid = computed(() => form.items.length > 0);
+const isStep3Valid = computed(() => form.purpose?.trim()?.length >= 20);
 
 // ─────────────────────────────────────────────
 // Navigation
@@ -224,223 +223,145 @@ const nextStep = () => {
     }
     if (activeStep.value < steps.length - 1) activeStep.value++;
 };
-
-const prevStep = () => { if (activeStep.value > 0) activeStep.value--; };
-
-const goToStep = (index) => { if (index <= activeStep.value) activeStep.value = index; };
+const prevStep  = () => { if (activeStep.value > 0) activeStep.value--; };
+const goToStep  = (i) => { if (i <= activeStep.value) activeStep.value = i; };
 
 // ─────────────────────────────────────────────
-// Build FormData helper
+// Build FormData
 // ─────────────────────────────────────────────
+const isSubmitting = ref(false);
+
 const buildFormData = (status) => {
     const fd = new FormData();
+    fd.append('_method',       'PUT');
     fd.append('status',        status);
     fd.append('department_id', form.department_id || '');
-    fd.append('branch_id',     form.branch_id || '');
+    fd.append('branch_id',     form.branch_id     || '');
 
     const rd = form.required_by_date;
-    let dateStr = '';
-    if (rd) {
-        dateStr = rd instanceof Date ? rd.toISOString().slice(0, 10) : rd;
-    }
-    fd.append('required_by_date', dateStr);
-    fd.append('priority',         form.priority);
-    fd.append('purpose',          form.purpose || '');
-    fd.append('justification',    form.justification || '');
-    fd.append('notes',            form.notes || '');
-    fd.append('items',            JSON.stringify(form.items));
+    fd.append('required_by_date',
+        rd instanceof Date ? rd.toISOString().slice(0, 10) : (rd ?? '')
+    );
+    fd.append('priority',      form.priority);
+    fd.append('purpose',       form.purpose       || '');
+    fd.append('justification', form.justification || '');
+    fd.append('notes',         form.notes         || '');
+    fd.append('items',         JSON.stringify(form.items));
 
-    // ── FIX: pass the autosave draft id so the controller can UPDATE
-    //         the existing record instead of INSERT a new one.
-    if (draftPRId.value) {
-        fd.append('draft_pr_id', draftPRId.value);
-    }
-
-    if (form.attachments && form.attachments.length > 0) {
-        form.attachments.forEach((file, i) => {
-            if (file instanceof File) fd.append(`attachments[${i}]`, file);
-        });
-    }
+    form.attachments.forEach((file, i) => {
+        if (file instanceof File) fd.append(`attachments[${i}]`, file);
+    });
 
     return fd;
 };
 
 // ─────────────────────────────────────────────
-// Save as draft  (FIX: guard against double-click)
+// Save as draft
 // ─────────────────────────────────────────────
 const saveDraft = () => {
-    // ── FIX: bail out immediately if already submitting
     if (isSubmitting.value) return;
-
-    // ── FIX: stop autosave so it cannot race with the manual save
-    stopAutoSave();
-
     isSubmitting.value = true;
 
-    router.post(route('tenant.requisitions.store'), buildFormData('draft'), {
-        forceFormData: true,
-        preserveState: true,
-        onSuccess: () => {
-            isSubmitting.value = false;
-            toast.add({ severity: 'success', summary: 'Saved', detail: 'Draft saved successfully', life: 3000 });
-            // After a successful manual save there is no need to autosave again
-            // (the user will be redirected by the controller on success anyway)
-        },
-        onError: (errors) => {
-            isSubmitting.value = false;
-            // Resume autosave only on failure so the user doesn't lose work
-            startAutoSave();
-            console.error('[saveDraft] errors:', errors);
-            const errorMsg = Object.values(errors).flat().join(', ');
-            toast.add({ severity: 'error', summary: 'Error', detail: errorMsg || 'Failed to save draft', life: 5000 });
-        },
-    });
+    router.post(
+        route('tenant.requisitions.update', props.requisition.id),
+        buildFormData('draft'),
+        {
+            forceFormData: true,
+            preserveState: true,
+            onSuccess: () => {
+                isSubmitting.value = false;
+                toast.add({ severity: 'success', summary: 'Saved', detail: 'Draft updated successfully', life: 3000 });
+            },
+            onError: (errors) => {
+                isSubmitting.value = false;
+                const msg = Object.values(errors).flat().join(', ');
+                toast.add({ severity: 'error', summary: 'Error', detail: msg || 'Failed to save', life: 5000 });
+            },
+        }
+    );
 };
 
 // ─────────────────────────────────────────────
-// Submit for approval  (FIX: set flag BEFORE confirm dialog opens)
+// Submit for approval
 // ─────────────────────────────────────────────
 const submitForApproval = () => {
-    // ── FIX: bail out immediately if already submitting
     if (isSubmitting.value) return;
 
-    if (!isStep1Valid.value) {
-        toast.add({ severity: 'warn', summary: 'Incomplete', detail: 'Please complete all required fields in Step 1', life: 3000 });
-        activeStep.value = 0;
-        return;
-    }
-    if (!isStep2Valid.value) {
-        toast.add({ severity: 'warn', summary: 'No Items', detail: 'Please add at least one item', life: 3000 });
-        activeStep.value = 1;
-        return;
-    }
-    if (!isStep3Valid.value) {
-        toast.add({ severity: 'warn', summary: 'Purpose Required', detail: 'Purpose must be at least 20 characters', life: 3000 });
-        activeStep.value = 2;
-        return;
-    }
+    if (!isStep1Valid.value) { activeStep.value = 0; toast.add({ severity: 'warn', summary: 'Incomplete', detail: 'Complete Step 1 first', life: 3000 }); return; }
+    if (!isStep2Valid.value) { activeStep.value = 1; toast.add({ severity: 'warn', summary: 'No Items',   detail: 'Add at least one item',     life: 3000 }); return; }
+    if (!isStep3Valid.value) { activeStep.value = 2; toast.add({ severity: 'warn', summary: 'Purpose',    detail: 'Purpose needs 20+ chars',    life: 3000 }); return; }
 
     confirm.require({
-        message: 'Submit this requisition for approval? You will not be able to edit it after submission.',
+        message: 'Submit this requisition for approval? It cannot be edited afterwards.',
         header:  'Confirm Submission',
         icon:    'pi pi-exclamation-triangle',
         accept: () => {
-            // ── FIX: set the flag immediately inside accept so a second
-            //         tap on "Yes" in the dialog cannot fire a second request
             if (isSubmitting.value) return;
             isSubmitting.value = true;
 
-            // Stop autosave so it cannot race with the manual submission
-            stopAutoSave();
-
-            router.post(route('tenant.requisitions.store'), buildFormData('submitted'), {
-                forceFormData: true,
-                preserveState: true,
-                onSuccess: () => {
-                    isSubmitting.value = false;
-                    toast.add({ severity: 'success', summary: 'Submitted', detail: 'Requisition submitted for approval', life: 3000 });
-                },
-                onError: (errors) => {
-                    isSubmitting.value = false;
-                    startAutoSave(); // resume autosave on failure
-                    console.error('[submitForApproval] errors:', errors);
-                    const errorMsg = Object.values(errors).flat().join(', ');
-                    toast.add({ severity: 'error', summary: 'Submit Failed', detail: errorMsg || 'Failed to submit requisition', life: 5000 });
-                },
-            });
+            router.post(
+                route('tenant.requisitions.update', props.requisition.id),
+                buildFormData('submitted'),
+                {
+                    forceFormData: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        isSubmitting.value = false;
+                        toast.add({ severity: 'success', summary: 'Submitted', detail: 'Requisition submitted for approval', life: 3000 });
+                    },
+                    onError: (errors) => {
+                        isSubmitting.value = false;
+                        const msg = Object.values(errors).flat().join(', ');
+                        toast.add({ severity: 'error', summary: 'Failed', detail: msg || 'Failed to submit', life: 5000 });
+                    },
+                }
+            );
         },
-        // ── FIX: make sure isSubmitting is reset if the user cancels
-        reject: () => {
-            isSubmitting.value = false;
-        },
+        reject: () => { isSubmitting.value = false; },
     });
 };
 
 // ─────────────────────────────────────────────
-// Auto-save (every 30 s)
-// FIX: skip the tick if a manual save is in-flight, and use draftPRId
-//      so we always UPDATE the same record instead of creating a new one.
-// ─────────────────────────────────────────────
-const startAutoSave = () => {
-    autoSaveInterval.value = setInterval(async () => {
-        // ── FIX: don't autosave while a manual submission is running
-        if (isSubmitting.value || isAutoSaving.value) return;
-        if (!form.department_id || !form.branch_id) return;
-
-        isAutoSaving.value = true;
-        try {
-            const { data } = await axios.post(route('tenant.requisitions.autosave'), {
-                id:               draftPRId.value,   // UPDATE existing draft if we have one
-                department_id:    form.department_id,
-                branch_id:        form.branch_id,
-                required_by_date: form.required_by_date instanceof Date
-                    ? form.required_by_date.toISOString().slice(0, 10)
-                    : form.required_by_date,
-                priority:      form.priority,
-                purpose:       form.purpose,
-                justification: form.justification,
-                notes:         form.notes,
-            });
-            if (data.success) {
-                draftPRId.value   = data.pr_id;   // remember the record id for next tick
-                lastSavedAt.value = new Date();
-            }
-        } catch {
-            /* silent */
-        } finally {
-            isAutoSaving.value = false;
-        }
-    }, 30000);
-};
-
-const stopAutoSave = () => {
-    if (autoSaveInterval.value) {
-        clearInterval(autoSaveInterval.value);
-        autoSaveInterval.value = null;
-    }
-};
-
-// ─────────────────────────────────────────────
-// Unsaved-changes browser warning
-// ─────────────────────────────────────────────
-const handleBeforeUnload = (e) => {
-    if (hasUnsavedChanges.value) {
-        e.preventDefault();
-        e.returnValue = '';
-    }
-};
-
-// ─────────────────────────────────────────────
-// Lifecycle
+// Lifecycle — show server errors on mount
 // ─────────────────────────────────────────────
 onMounted(() => {
-    startAutoSave();
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     if (props.errors && Object.keys(props.errors).length > 0) {
-        console.error('[onMounted] Server errors:', props.errors);
-        const errorMsg = Object.values(props.errors).flat().join(', ');
-        toast.add({ severity: 'error', summary: 'Server Error', detail: errorMsg, life: 5000 });
+        const msg = Object.values(props.errors).flat().join(', ');
+        toast.add({ severity: 'error', summary: 'Validation Error', detail: msg, life: 6000 });
     }
-});
-
-onBeforeUnmount(() => {
-    stopAutoSave();
-    window.removeEventListener('beforeunload', handleBeforeUnload);
 });
 </script>
 
 <template>
-    <TenantLayout title="Create Purchase Requisition">
+    <TenantLayout title="Edit Purchase Requisition">
         <div class="p-6">
 
             <!-- Page header -->
-            <div class="mb-6">
-                <h1 class="text-3xl font-bold text-gray-900">Create Purchase Requisition</h1>
-                <p class="text-gray-500 mt-1">Complete each step, then submit for approval.</p>
+            <div class="mb-6 flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-3 mb-1">
+                        <Button
+                            icon="pi pi-arrow-left"
+                            severity="secondary"
+                            text
+                            rounded
+                            @click="router.visit(route('tenant.requisitions.show', requisition.id))"
+                        />
+                        <h1 class="text-3xl font-bold text-gray-900">Edit Requisition</h1>
+                    </div>
+                    <p class="text-gray-500 ml-11">
+                        <span class="font-semibold text-blue-600">{{ requisition.pr_number }}</span>
+                        &nbsp;·&nbsp; Last updated {{ new Date(requisition.updated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) }}
+                    </p>
+                </div>
+                <Tag
+                    :value="requisition.status?.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())"
+                    severity="secondary"
+                    class="text-sm capitalize"
+                />
             </div>
 
-            <!-- Steps progress -->
+            <!-- Steps -->
             <Card class="mb-6">
                 <template #content>
                     <Steps :model="steps" :activeStep="activeStep" />
@@ -509,12 +430,12 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- STEP 2 — Add Items -->
+            <!-- STEP 2 — Items -->
             <Card v-if="activeStep === 1" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
                         <Package :size="22" class="text-blue-600" />
-                        <span>Add Items ({{ form.items.length }})</span>
+                        <span>Items ({{ form.items.length }})</span>
                     </div>
                 </template>
                 <template #content>
@@ -546,7 +467,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div class="md:col-span-2 flex flex-col gap-1">
-                                <label class="font-semibold text-sm">Quantity <span class="text-red-500">*</span></label>
+                                <label class="font-semibold text-sm">Qty <span class="text-red-500">*</span></label>
                                 <InputNumber v-model="itemQuantity" :min="0.01" :maxFractionDigits="2" class="w-full" />
                             </div>
 
@@ -568,14 +489,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div class="md:col-span-1">
-                                <Button
-                                    label="Add"
-                                    icon="pi pi-plus"
-                                    severity="success"
-                                    class="w-full"
-                                    @click="addItem"
-                                    :disabled="!selectedItem"
-                                />
+                                <Button label="Add" icon="pi pi-plus" severity="success" class="w-full" @click="addItem" :disabled="!selectedItem" />
                             </div>
 
                         </div>
@@ -589,29 +503,24 @@ onBeforeUnmount(() => {
                                 <p>No items yet — search and add items above.</p>
                             </div>
                         </template>
-
-                        <Column field="item_code" header="Code" style="width:12%" />
-                        <Column field="item_name" header="Item" style="width:25%" />
-                        <Column field="unit" header="Unit" style="width:10%" />
-
+                        <Column field="item_code" header="Code"  style="width:12%" />
+                        <Column field="item_name" header="Item"  style="width:25%" />
+                        <Column field="unit"      header="Unit"  style="width:10%" />
                         <Column header="Qty" style="width:12%">
                             <template #body="{ data }">
                                 <InputNumber v-model="data.quantity" :min="0.01" :maxFractionDigits="2" class="w-full" @input="updateItemTotal(data)" />
                             </template>
                         </Column>
-
                         <Column header="Unit Price" style="width:15%">
                             <template #body="{ data }">
                                 <InputNumber v-model="data.estimated_unit_price" :min="0" :minFractionDigits="2" :maxFractionDigits="2" class="w-full" @input="updateItemTotal(data)" />
                             </template>
                         </Column>
-
                         <Column header="Total (BDT)" style="width:14%">
                             <template #body="{ data }">
                                 <span class="font-semibold">{{ (data.estimated_total || 0).toFixed(2) }}</span>
                             </template>
                         </Column>
-
                         <Column style="width:12%">
                             <template #body="{ index }">
                                 <Button icon="pi pi-trash" severity="danger" text rounded @click="removeItem(index)" />
@@ -619,7 +528,7 @@ onBeforeUnmount(() => {
                         </Column>
                     </DataTable>
 
-                    <!-- Grand total -->
+                    <!-- Total -->
                     <div class="flex justify-end">
                         <div class="bg-blue-50 border border-blue-200 rounded-lg px-6 py-3 text-right">
                             <p class="text-xs text-gray-500 mb-1">Total Amount</p>
@@ -643,9 +552,9 @@ onBeforeUnmount(() => {
                     <div class="mb-6">
                         <label class="font-semibold text-sm block mb-1">
                             Purpose <span class="text-red-500">*</span>
-                            <span class="font-normal text-gray-500 ml-1">(Why are these items needed? Minimum 20 characters)</span>
+                            <span class="font-normal text-gray-500 ml-1">(Minimum 20 characters)</span>
                         </label>
-                        <Textarea v-model="form.purpose" :rows="5" placeholder="Explain the purpose and necessity of these items…" class="w-full" autoResize />
+                        <Textarea v-model="form.purpose" :rows="5" class="w-full" autoResize placeholder="Explain why these items are needed…" />
                         <small :class="purposeCharCount < 20 ? 'text-red-500' : 'text-green-600'">
                             {{ purposeCharCount }} / 1000 characters
                             <span v-if="purposeCharCount < 20"> — need {{ 20 - purposeCharCount }} more</span>
@@ -654,12 +563,37 @@ onBeforeUnmount(() => {
 
                     <div class="mb-6">
                         <label class="font-semibold text-sm block mb-1">Additional Details <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <Textarea v-model="form.justification" :rows="4" placeholder="Any additional information…" class="w-full" autoResize />
+                        <Textarea v-model="form.justification" :rows="4" class="w-full" autoResize placeholder="Any additional information…" />
                     </div>
 
+                    <!-- Existing attachments -->
+                    <div v-if="form.keepAttachments.length > 0" class="mb-4">
+                        <label class="font-semibold text-sm block mb-2">Existing Attachments</label>
+                        <ul class="space-y-2">
+                            <li v-for="(att, idx) in form.keepAttachments" :key="idx"
+                                class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <i class="pi pi-paperclip text-gray-400" />
+                                    <span class="truncate max-w-xs">{{ att.name }}</span>
+                                    <span class="text-gray-400 text-xs">({{ (att.size / 1024).toFixed(1) }} KB)</span>
+                                </div>
+                                <Button
+                                    icon="pi pi-times"
+                                    severity="danger"
+                                    text
+                                    rounded
+                                    size="small"
+                                    @click="removeExistingAttachment(idx)"
+                                />
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- New attachments -->
                     <div class="mb-6">
                         <label class="font-semibold text-sm flex items-center gap-1 mb-1">
-                            <Upload :size="16" /> Attachments <span class="text-gray-400 font-normal">(optional, max 5 MB each)</span>
+                            <Upload :size="16" /> Add New Attachments <span class="text-gray-400 font-normal">(optional, max 5 MB each)</span>
                         </label>
                         <FileUpload
                             name="attachments[]"
@@ -680,7 +614,7 @@ onBeforeUnmount(() => {
 
                     <div>
                         <label class="font-semibold text-sm block mb-1">Internal Notes <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <Textarea v-model="form.notes" :rows="3" placeholder="Any internal notes…" class="w-full" autoResize />
+                        <Textarea v-model="form.notes" :rows="3" class="w-full" autoResize placeholder="Any internal notes…" />
                     </div>
 
                 </template>
@@ -696,6 +630,7 @@ onBeforeUnmount(() => {
                 </template>
                 <template #content>
 
+                    <!-- Basic info summary -->
                     <div class="mb-4">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-bold text-lg">Basic Information</h3>
@@ -712,7 +647,11 @@ onBeforeUnmount(() => {
                             </div>
                             <div>
                                 <span class="text-gray-500">Required By:</span>
-                                <span class="ml-2 font-semibold">{{ form.required_by_date || '—' }}</span>
+                                <span class="ml-2 font-semibold">
+                                    {{ form.required_by_date instanceof Date
+                                        ? form.required_by_date.toISOString().slice(0,10)
+                                        : form.required_by_date || '—' }}
+                                </span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Priority:</span>
@@ -723,16 +662,17 @@ onBeforeUnmount(() => {
 
                     <Divider />
 
+                    <!-- Items summary -->
                     <div class="mb-4">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-bold text-lg">Items ({{ form.items.length }})</h3>
                             <Button label="Edit" text size="small" @click="goToStep(1)" />
                         </div>
                         <DataTable :value="form.items" size="small" class="text-sm">
-                            <Column field="item_code" header="Code" style="width:15%" />
-                            <Column field="item_name" header="Item" style="width:30%" />
-                            <Column field="quantity" header="Qty" style="width:10%" />
-                            <Column field="unit" header="Unit" style="width:10%" />
+                            <Column field="item_code" header="Code"  style="width:15%" />
+                            <Column field="item_name" header="Item"  style="width:30%" />
+                            <Column field="quantity"  header="Qty"   style="width:10%" />
+                            <Column field="unit"      header="Unit"  style="width:10%" />
                             <Column header="Unit Price" style="width:15%">
                                 <template #body="{ data }">{{ (data.estimated_unit_price || 0).toFixed(2) }}</template>
                             </Column>
@@ -745,6 +685,7 @@ onBeforeUnmount(() => {
 
                     <Divider />
 
+                    <!-- Justification summary -->
                     <div>
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-bold text-lg">Justification</h3>
@@ -759,8 +700,8 @@ onBeforeUnmount(() => {
                                 <p class="text-gray-500 font-semibold">Additional Details:</p>
                                 <p class="whitespace-pre-wrap">{{ form.justification }}</p>
                             </div>
-                            <p v-if="form.attachments?.length" class="text-gray-500">
-                                Attachments: {{ form.attachments.length }} file(s)
+                            <p v-if="form.keepAttachments.length || form.attachments.length" class="text-gray-500">
+                                Attachments: {{ form.keepAttachments.length + form.attachments.length }} file(s)
                             </p>
                         </div>
                     </div>
@@ -784,7 +725,7 @@ onBeforeUnmount(() => {
 
                         <div class="flex gap-3">
                             <Button
-                                label="Save as Draft"
+                                label="Save Changes"
                                 icon="pi pi-save"
                                 severity="secondary"
                                 outlined
@@ -813,11 +754,6 @@ onBeforeUnmount(() => {
                     </div>
                 </template>
             </Card>
-
-            <!-- Auto-save indicator -->
-            <p v-if="lastSavedAt" class="mt-3 text-center text-xs text-gray-400">
-                Draft auto-saved at {{ lastSavedAt.toLocaleTimeString() }}
-            </p>
 
         </div>
 

@@ -110,6 +110,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{requisition}/edit',                           [PurchaseRequisitionController::class, 'edit'])->name('edit');
         Route::put('/{requisition}',                                [PurchaseRequisitionController::class, 'update'])->name('update');
         Route::delete('/{requisition}/attachments/{index}',        [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
+
+   Route::post('/{requisition}/approve', [PurchaseRequisitionController::class, 'approve'])->name('approve');
+    Route::post('/{requisition}/reject',  [PurchaseRequisitionController::class, 'reject'])->name('reject');
+
+
     });
 
     });

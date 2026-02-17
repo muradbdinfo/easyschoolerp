@@ -11,7 +11,6 @@ use App\Services\ApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -123,22 +122,47 @@ class PurchaseRequisitionController extends Controller
                 'items'            => 'required|json',
                 'attachments'      => 'nullable|array',
                 'attachments.*'    => 'file|max:5120',
+                'draft_pr_id'      => 'nullable|integer',
             ]);
 
             DB::beginTransaction();
 
-            $pr = PurchaseRequisition::create([
-                'user_id'          => auth()->id(),
-                'pr_date'          => now()->toDateString(),
-                'department_id'    => $validated['department_id'],
-                'branch_id'        => $validated['branch_id'],
-                'required_by_date' => $validated['required_by_date'],
-                'priority'         => $validated['priority'],
-                'purpose'          => $validated['purpose'],
-                'justification'    => $validated['justification'] ?? null,
-                'notes'            => $validated['notes'] ?? null,
-                'status'           => $validated['status'],
-            ]);
+            $pr = null;
+
+            if (!empty($validated['draft_pr_id'])) {
+                $pr = PurchaseRequisition::where('id', $validated['draft_pr_id'])
+                    ->where('user_id', auth()->id())
+                    ->where('status', 'draft')
+                    ->first();
+            }
+
+            if ($pr) {
+                $pr->update([
+                    'department_id'    => $validated['department_id'],
+                    'branch_id'        => $validated['branch_id'],
+                    'required_by_date' => $validated['required_by_date'],
+                    'priority'         => $validated['priority'],
+                    'purpose'          => $validated['purpose'],
+                    'justification'    => $validated['justification'] ?? null,
+                    'notes'            => $validated['notes'] ?? null,
+                    'status'           => $validated['status'],
+                ]);
+            } else {
+                $pr = PurchaseRequisition::create([
+                    'user_id'          => auth()->id(),
+                    'pr_date'          => now()->toDateString(),
+                    'department_id'    => $validated['department_id'],
+                    'branch_id'        => $validated['branch_id'],
+                    'required_by_date' => $validated['required_by_date'],
+                    'priority'         => $validated['priority'],
+                    'purpose'          => $validated['purpose'],
+                    'justification'    => $validated['justification'] ?? null,
+                    'notes'            => $validated['notes'] ?? null,
+                    'status'           => $validated['status'],
+                ]);
+            }
+
+            $pr->items()->delete();
 
             $items = json_decode($validated['items'], true);
 
@@ -165,7 +189,7 @@ class PurchaseRequisitionController extends Controller
             }
 
             if ($request->hasFile('attachments')) {
-                $attachments = [];
+                $attachments = $pr->attachments ?? [];
                 foreach ($request->file('attachments') as $file) {
                     $path          = $file->store('requisitions/' . $pr->id, 'public');
                     $attachments[] = [
@@ -185,8 +209,9 @@ class PurchaseRequisitionController extends Controller
 
             DB::commit();
 
+            // ✅ FIXED route name
             return redirect()
-                ->route('tenant.procurement.requisitions.show', $pr->id)
+                ->route('tenant.requisitions.show', $pr->id)
                 ->with('success', $validated['status'] === 'submitted'
                     ? 'Purchase requisition submitted for approval successfully'
                     : 'Purchase requisition saved as draft successfully'
@@ -290,8 +315,9 @@ class PurchaseRequisitionController extends Controller
 
             DB::commit();
 
+            // ✅ FIXED route name
             return redirect()
-                ->route('tenant.procurement.requisitions.show', $requisition->id)
+                ->route('tenant.requisitions.show', $requisition->id)
                 ->with('success', 'Purchase requisition updated successfully');
 
         } catch (\Exception $e) {
@@ -313,8 +339,9 @@ class PurchaseRequisitionController extends Controller
         $requisition->items()->delete();
         $requisition->delete();
 
+        // ✅ FIXED route name
         return redirect()
-            ->route('tenant.procurement.requisitions.index')
+            ->route('tenant.requisitions.index')
             ->with('success', 'Requisition deleted successfully');
     }
 
@@ -405,6 +432,68 @@ class PurchaseRequisitionController extends Controller
             return response()->json(['success' => true, 'pr_id' => $pr->id]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ✅ NEW: Approve a requisition
+    // ─────────────────────────────────────────────────────────────────────
+    public function approve(Request $request, PurchaseRequisition $requisition)
+    {
+        $request->validate([
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        if (!$this->approvalService->canApprove($requisition, auth()->user())) {
+            return back()->with('error', 'You are not authorised to approve this requisition.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $this->approvalService->approve($requisition, auth()->user(), $request->notes);
+
+            DB::commit();
+
+            return redirect()
+                ->route('tenant.requisitions.show', $requisition->id)
+                ->with('success', 'Requisition approved successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('PR Approve Error: ' . $e->getMessage());
+            return back()->with('error', 'Failed to approve: ' . $e->getMessage());
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ✅ NEW: Reject a requisition
+    // ─────────────────────────────────────────────────────────────────────
+    public function reject(Request $request, PurchaseRequisition $requisition)
+    {
+        $request->validate([
+            'notes' => 'required|string|min:5|max:1000',
+        ]);
+
+        if (!$this->approvalService->canApprove($requisition, auth()->user())) {
+            return back()->with('error', 'You are not authorised to reject this requisition.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $this->approvalService->reject($requisition, auth()->user(), $request->notes);
+
+            DB::commit();
+
+            return redirect()
+                ->route('tenant.requisitions.show', $requisition->id)
+                ->with('success', 'Requisition rejected.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('PR Reject Error: ' . $e->getMessage());
+            return back()->with('error', 'Failed to reject: ' . $e->getMessage());
         }
     }
 }

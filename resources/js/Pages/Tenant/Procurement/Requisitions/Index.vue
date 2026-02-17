@@ -77,7 +77,7 @@ let searchTimeout = null;
 const applyFilters = (page = 1) => {
     loading.value = true;
     router.get(
-        route('tenant.procurement.requisitions.index'),
+        route('tenant.requisitions.index'),                  // ✅ FIXED
         {
             search:        search.value           || undefined,
             status:        statusFilter.value     || undefined,
@@ -86,9 +86,9 @@ const applyFilters = (page = 1) => {
             page,
         },
         {
-            preserveState: true,
+            preserveState:  true,
             preserveScroll: true,
-            replace: true,
+            replace:        true,
             onFinish: () => { loading.value = false; },
         }
     );
@@ -113,7 +113,7 @@ const hasActiveFilters = computed(() =>
     !!search.value || !!statusFilter.value || !!priorityFilter.value || !!departmentFilter.value
 );
 
-// ── Status config (ALL statuses covered) ──────────────
+// ── Status config ──────────────────────────────────────
 const statusConfig = {
     draft:           { severity: 'secondary', label: 'Draft'            },
     submitted:       { severity: 'info',      label: 'Submitted'        },
@@ -147,21 +147,24 @@ const openActionMenu = (event, row) => {
     actionMenu.value.toggle(event);
 };
 
+// ✅ FIX: was using tenant.procurement.requisitions.* everywhere
 const actionMenuItems = computed(() => {
     const row = actionTarget.value;
     if (!row) return [];
 
-    const items = [{
-        label:   'View',
-        icon:    'pi pi-eye',
-        command: () => router.visit(route('tenant.procurement.requisitions.show', row.id)),
-    }];
+    const items = [
+        {
+            label:   'View',
+            icon:    'pi pi-eye',
+            command: () => router.visit(route('tenant.requisitions.show', row.id)),
+        },
+    ];
 
     if (row.status === 'draft') {
         items.push({
             label:   'Edit',
             icon:    'pi pi-pencil',
-            command: () => router.visit(route('tenant.procurement.requisitions.edit', row.id)),
+            command: () => router.visit(route('tenant.requisitions.edit', row.id)),
         });
         items.push({ separator: true });
         items.push({
@@ -171,6 +174,7 @@ const actionMenuItems = computed(() => {
             command: () => confirmDelete(row),
         });
     }
+
     return items;
 });
 
@@ -182,9 +186,9 @@ const confirmDelete = (row) => {
         icon:        'pi pi-exclamation-triangle',
         acceptClass: 'p-button-danger',
         accept: () => {
-            router.delete(route('tenant.procurement.requisitions.destroy', row.id), {
-                onSuccess: () => toast.add({ severity: 'success', summary: 'Deleted', detail: 'Requisition deleted.', life: 3000 }),
-                onError:   () => toast.add({ severity: 'error',   summary: 'Error',   detail: 'Failed to delete.',   life: 3000 }),
+            router.delete(route('tenant.requisitions.destroy', row.id), {   // ✅ FIXED
+                onSuccess: () => toast.add({ severity: 'success', summary: 'Deleted', detail: 'Requisition deleted.',  life: 3000 }),
+                onError:   () => toast.add({ severity: 'error',   summary: 'Error',   detail: 'Failed to delete.',    life: 3000 }),
             });
         },
     });
@@ -201,13 +205,13 @@ const formatAmount = (v) =>
 
 // ── Summary cards ──────────────────────────────────────
 const summaryCards = computed(() => [
-    { label: 'Total PRs',       value: props.summary.total     ?? 0, icon: FileText,    color: 'blue'   },
-    { label: 'Pending Approval',value: props.summary.submitted ?? 0, icon: Clock,       color: 'yellow' },
-    { label: 'Approved',        value: props.summary.approved  ?? 0, icon: CheckCircle2,color: 'green'  },
-    { label: 'Drafts',          value: props.summary.draft     ?? 0, icon: Pencil,      color: 'gray'   },
+    { label: 'Total PRs',        value: props.summary.total     ?? 0, icon: FileText,    color: 'blue'   },
+    { label: 'Pending Approval', value: props.summary.submitted ?? 0, icon: Clock,       color: 'yellow' },
+    { label: 'Approved',         value: props.summary.approved  ?? 0, icon: CheckCircle2,color: 'green'  },
+    { label: 'Drafts',           value: props.summary.draft     ?? 0, icon: Pencil,      color: 'gray'   },
 ]);
 
-const colorMap  = {
+const colorMap = {
     blue:   'bg-blue-50 text-blue-600 border-blue-100',
     yellow: 'bg-yellow-50 text-yellow-600 border-yellow-100',
     green:  'bg-green-50 text-green-600 border-green-100',
@@ -238,9 +242,9 @@ const colorIcon = {
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
                     <Button label="Export" icon="pi pi-download" severity="secondary" outlined size="small"
-                        @click="router.visit(route('tenant.procurement.requisitions.index', { export: 'csv' }))" />
+                        @click="router.visit(route('tenant.requisitions.index', { export: 'csv' }))" />  <!-- ✅ FIXED -->
                     <Button v-if="canCreate" label="New Requisition" icon="pi pi-plus" size="small"
-                        @click="router.visit(route('tenant.procurement.requisitions.create'))" />
+                        @click="router.visit(route('tenant.requisitions.create'))" />
                 </div>
             </div>
 
@@ -309,16 +313,17 @@ const colorIcon = {
                                 <p class="text-base font-semibold text-gray-500 mb-1">No requisitions found</p>
                                 <p class="text-sm mb-4">{{ hasActiveFilters ? 'Try adjusting your filters.' : 'Create your first purchase requisition.' }}</p>
                                 <Button v-if="!hasActiveFilters && canCreate" label="New Requisition" icon="pi pi-plus" size="small"
-                                    @click="router.visit(route('tenant.procurement.requisitions.create'))" />
+                                    @click="router.visit(route('tenant.requisitions.create'))" />  <!-- ✅ FIXED -->
                                 <Button v-else-if="hasActiveFilters" label="Reset Filters" icon="pi pi-times"
                                     severity="secondary" outlined size="small" @click="resetFilters" />
                             </div>
                         </template>
 
+                        <!-- PR Number — clickable to show -->
                         <Column header="PR Number" style="width:13%">
                             <template #body="{ data }">
                                 <button class="text-blue-600 font-semibold hover:underline text-left"
-                                    @click="router.visit(route('tenant.procurement.requisitions.show', data.id))">
+                                    @click="router.visit(route('tenant.requisitions.show', data.id))">  <!-- ✅ FIXED -->
                                     {{ data.pr_number }}
                                 </button>
                             </template>
@@ -370,7 +375,6 @@ const colorIcon = {
                             </template>
                         </Column>
 
-                        <!-- FIXED: was data.created_by?.name -->
                         <Column header="Created By" style="width:11%">
                             <template #body="{ data }">
                                 <span class="text-gray-600 text-xs">{{ data.user?.name ?? '—' }}</span>
@@ -406,8 +410,11 @@ const colorIcon = {
                     </div>
                 </template>
             </Card>
+
         </div>
 
+        <!-- Action menu (outside Card so it layers above the table) -->
         <Menu ref="actionMenu" :model="actionMenuItems" :popup="true" />
+
     </TenantLayout>
 </template>
