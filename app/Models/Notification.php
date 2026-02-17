@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class Notification extends Model
 {
     use HasFactory;
-
+protected $table = 'pr_notifications';
     protected $fillable = [
         'user_id',
         'type',

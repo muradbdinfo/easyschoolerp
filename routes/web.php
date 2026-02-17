@@ -95,17 +95,22 @@ Route::middleware(['auth'])->group(function () {
         Route::get('categories-list',                  [ItemCategoryController::class, 'list'])->name('categories.list');
 
         // Purchase Requisitions
-        Route::prefix('requisitions')->name('requisitions.')->group(function () {
-            Route::get('/',                                        [PurchaseRequisitionController::class, 'index'])->name('index');
-            Route::get('/create',                                  [PurchaseRequisitionController::class, 'create'])->name('create');
-            Route::post('/',                                       [PurchaseRequisitionController::class, 'store'])->name('store');
-            Route::get('/{requisition}',                           [PurchaseRequisitionController::class, 'show'])->name('show');
-            Route::get('/{requisition}/edit',                      [PurchaseRequisitionController::class, 'edit'])->name('edit');
-            Route::put('/{requisition}',                           [PurchaseRequisitionController::class, 'update'])->name('update');
-            Route::delete('/{requisition}/attachments/{index}',    [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
-            Route::post('/autosave',                               [PurchaseRequisitionController::class, 'autosave'])->name('autosave');
-            Route::get('/search/items',                            [PurchaseRequisitionController::class, 'searchItems'])->name('search.items');
-        });
+    // Purchase Requisitions
+    Route::prefix('requisitions')->name('requisitions.')->group(function () {
+
+        // ── Static routes FIRST (before any {requisition} wildcard) ──────────
+        Route::get('/',              [PurchaseRequisitionController::class, 'index'])->name('index');
+        Route::get('/create',        [PurchaseRequisitionController::class, 'create'])->name('create');
+        Route::post('/',             [PurchaseRequisitionController::class, 'store'])->name('store');
+        Route::post('/autosave',     [PurchaseRequisitionController::class, 'autosave'])->name('autosave');
+        Route::get('/search/items',  [PurchaseRequisitionController::class, 'searchItems'])->name('search.items');
+
+        // ── Wildcard routes AFTER static ones ─────────────────────────────────
+        Route::get('/{requisition}',                                [PurchaseRequisitionController::class, 'show'])->name('show');
+        Route::get('/{requisition}/edit',                           [PurchaseRequisitionController::class, 'edit'])->name('edit');
+        Route::put('/{requisition}',                                [PurchaseRequisitionController::class, 'update'])->name('update');
+        Route::delete('/{requisition}/attachments/{index}',        [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
+    });
 
     });
 

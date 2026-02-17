@@ -10,7 +10,7 @@ import TenantLayout from '@/Layouts/TenantLayout.vue';
 import Steps from 'primevue/steps';
 import Card from 'primevue/card';
 import Divider from 'primevue/divider';
-import Dropdown from 'primevue/dropdown';
+import Select from 'primevue/select';
 import SelectButton from 'primevue/selectbutton';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';
@@ -21,22 +21,9 @@ import Column from 'primevue/column';
 import InputNumber from 'primevue/inputnumber';
 import Button from 'primevue/button';
 import ConfirmDialog from 'primevue/confirmdialog';
-
-/**
- * DATE PICKER — PrimeVue v3 vs v4
- * ─────────────────────────────────────────────
- * PrimeVue v3  →  import Calendar from 'primevue/calendar'
- *                 use <Calendar … /> in template
- *
- * PrimeVue v4  →  import DatePicker from 'primevue/datepicker'
- *                 use <DatePicker … /> in template
- *
- * Check your version: grep primevue package.json
- * The template below uses DatePicker (v4). If you're on v3, swap it.
- */
 import DatePicker from 'primevue/datepicker';
 
-// Lucide icons — names chosen to never clash with PrimeVue component names
+// Lucide icons
 import {
     CalendarDays as CalendarIcon,
     Package,
@@ -51,6 +38,7 @@ import {
 const props = defineProps({
     departments: { type: Array, default: () => [] },
     branches:    { type: Array, default: () => [] },
+    errors:      { type: Object, default: () => ({}) },  // <-- Add errors prop
 });
 
 // ─────────────────────────────────────────────
@@ -101,6 +89,7 @@ const selectedItem      = ref(null);
 const itemQuantity      = ref(1);
 const itemPrice         = ref(0);
 const itemSpecs         = ref('');
+const isSearching       = ref(false);
 
 // ─────────────────────────────────────────────
 // Auto-save state
@@ -108,6 +97,7 @@ const itemSpecs         = ref('');
 const autoSaveInterval = ref(null);
 const lastSavedAt      = ref(null);
 const draftPRId        = ref(null);
+const isSubmitting     = ref(false);
 
 // ─────────────────────────────────────────────
 // Computed
@@ -116,13 +106,13 @@ const totalAmount = computed(() =>
     form.items.reduce((sum, item) => sum + (item.quantity * item.estimated_unit_price), 0)
 );
 
-const purposeCharCount = computed(() => form.purpose.length);
+const purposeCharCount = computed(() => form.purpose?.length || 0);
 
 const isStep1Valid = computed(() =>
     !!form.department_id && !!form.branch_id && !!form.required_by_date && !!form.priority
 );
 const isStep2Valid = computed(() => form.items.length > 0);
-const isStep3Valid = computed(() => form.purpose.trim().length >= 20);
+const isStep3Valid = computed(() => form.purpose?.trim()?.length >= 20);
 
 const hasUnsavedChanges = computed(() =>
     !!form.department_id || !!form.branch_id || form.items.length > 0
@@ -132,14 +122,46 @@ const hasUnsavedChanges = computed(() =>
 // Item helpers
 // ─────────────────────────────────────────────
 const searchItems = async (event) => {
-    if (event.query.length < 2) { itemSearchResults.value = []; return; }
+    if (!event.query || event.query.length < 2) { 
+        itemSearchResults.value = []; 
+        return; 
+    }
+
+    isSearching.value = true;
+    const url = route('tenant.requisitions.search.items');
+    console.log('[searchItems] query:', event.query, '| url:', url);
+
     try {
-        const { data } = await axios.get(route('tenant.procurement.requisitions.search.items'), {
-            params: { query: event.query },
+        const { data } = await axios.get(url, { params: { query: event.query } });
+        console.log('[searchItems] response:', data);
+        
+        // Handle error/debug responses
+        if (data._debug) {
+            console.error('[searchItems] Server debug:', data._debug);
+            itemSearchResults.value = [];
+            toast.add({ 
+                severity: 'error', 
+                summary: 'Search Error', 
+                detail: 'Item search failed: ' + data._debug, 
+                life: 5000 
+            });
+            return;
+        }
+        
+        // Ensure data is an array
+        itemSearchResults.value = Array.isArray(data) ? data : [];
+        
+    } catch (err) {
+        console.error('[searchItems] ERROR:', err?.response?.status, err?.response?.data ?? err.message);
+        itemSearchResults.value = [];
+        toast.add({ 
+            severity: 'error', 
+            summary: 'Error', 
+            detail: `Failed to search items (${err?.response?.status ?? 'network'})`, 
+            life: 4000 
         });
-        itemSearchResults.value = data;
-    } catch {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to search items', life: 3000 });
+    } finally {
+        isSearching.value = false;
     }
 };
 
@@ -162,11 +184,11 @@ const addItem = () => {
         item_id:              selectedItem.value.id,
         item_code:            selectedItem.value.code,
         item_name:            selectedItem.value.name,
-        item_description:     selectedItem.value.description ?? '',
+        item_description:     selectedItem.value.description || '',
         unit:                 selectedItem.value.unit,
         quantity:             itemQuantity.value,
         estimated_unit_price: price,
-        specifications:       itemSpecs.value,
+        specifications:       itemSpecs.value || '',
         estimated_total:      itemQuantity.value * price,
     });
 
@@ -175,6 +197,7 @@ const addItem = () => {
     itemQuantity.value = 1;
     itemPrice.value    = 0;
     itemSpecs.value    = '';
+    itemSearchResults.value = [];
     toast.add({ severity: 'success', summary: 'Added', detail: 'Item added to list', life: 2000 });
 };
 
@@ -184,13 +207,16 @@ const removeItem = (index) => {
 };
 
 const updateItemTotal = (item) => {
-    item.estimated_total = (item.quantity ?? 0) * (item.estimated_unit_price ?? 0);
+    item.estimated_total = (item.quantity || 0) * (item.estimated_unit_price || 0);
 };
 
 // ─────────────────────────────────────────────
 // File upload
 // ─────────────────────────────────────────────
-const onFileSelect = (event) => { form.attachments = event.files; };
+const onFileSelect = (event) => { 
+    form.attachments = event.files || []; 
+};
+
 const onFileRemove = (event) => {
     const idx = form.attachments.indexOf(event.file);
     if (idx > -1) form.attachments.splice(idx, 1);
@@ -202,7 +228,7 @@ const onFileRemove = (event) => {
 const nextStep = () => {
     const validations = [isStep1Valid, isStep2Valid, isStep3Valid];
     const messages    = [
-        'Please fill all required fields',
+        'Please fill all required fields (Department, Branch, Date, Priority)',
         'Please add at least one item',
         'Purpose must be at least 20 characters',
     ];
@@ -223,23 +249,41 @@ const goToStep = (index) => { if (index <= activeStep.value) activeStep.value = 
 const buildFormData = (status) => {
     const fd = new FormData();
     fd.append('status',           status);
-    fd.append('department_id',    form.department_id   ?? '');
-    fd.append('branch_id',        form.branch_id       ?? '');
+    fd.append('department_id',    form.department_id   || '');
+    fd.append('branch_id',        form.branch_id       || '');
 
-    // Normalise date — DatePicker returns a Date object
+    // Normalise date
     const rd = form.required_by_date;
-    fd.append('required_by_date', rd
-        ? (rd instanceof Date ? rd.toISOString().slice(0, 10) : rd)
-        : ''
-    );
+    let dateStr = '';
+    if (rd) {
+        if (rd instanceof Date) {
+            dateStr = rd.toISOString().slice(0, 10);
+        } else if (typeof rd === 'string') {
+            dateStr = rd;
+        }
+    }
+    fd.append('required_by_date', dateStr);
 
     fd.append('priority',      form.priority);
-    fd.append('purpose',       form.purpose);
-    fd.append('justification', form.justification);
-    fd.append('notes',         form.notes);
-    fd.append('items',         JSON.stringify(form.items));
+    fd.append('purpose',       form.purpose || '');
+    fd.append('justification', form.justification || '');
+    fd.append('notes',         form.notes || '');
+    
+    // Ensure items is proper JSON
+    const itemsJson = JSON.stringify(form.items);
+    fd.append('items', itemsJson);
+    
+    console.log('[buildFormData] items JSON:', itemsJson);
 
-    form.attachments.forEach((file, i) => fd.append(`attachments[${i}]`, file));
+    // Add attachments
+    if (form.attachments && form.attachments.length > 0) {
+        form.attachments.forEach((file, i) => {
+            if (file instanceof File) {
+                fd.append(`attachments[${i}]`, file);
+            }
+        });
+    }
+    
     return fd;
 };
 
@@ -247,10 +291,22 @@ const buildFormData = (status) => {
 // Save as draft
 // ─────────────────────────────────────────────
 const saveDraft = () => {
-    router.post(route('tenant.procurement.requisitions.store'), buildFormData('draft'), {
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
+    
+    router.post(route('tenant.requisitions.store'), buildFormData('draft'), {
         forceFormData: true,
-        onSuccess: () => toast.add({ severity: 'success', summary: 'Saved',  detail: 'Draft saved successfully', life: 3000 }),
-        onError:   () => toast.add({ severity: 'error',   summary: 'Error',  detail: 'Failed to save draft',    life: 3000 }),
+        preserveState: true,
+        onSuccess: () => {
+            isSubmitting.value = false;
+            toast.add({ severity: 'success', summary: 'Saved',  detail: 'Draft saved successfully', life: 3000 });
+        },
+        onError: (errors) => {
+            isSubmitting.value = false;
+            console.error('[saveDraft] errors:', errors);
+            const errorMsg = Object.values(errors).flat().join(', ');
+            toast.add({ severity: 'error',   summary: 'Error',  detail: errorMsg || 'Failed to save draft', life: 5000 });
+        },
     });
 };
 
@@ -258,15 +314,45 @@ const saveDraft = () => {
 // Submit for approval
 // ─────────────────────────────────────────────
 const submitForApproval = () => {
+    if (isSubmitting.value) return;
+    
+    // Final validation
+    if (!isStep1Valid.value) {
+        toast.add({ severity: 'warn', summary: 'Incomplete', detail: 'Please complete all required fields in Step 1', life: 3000 });
+        activeStep.value = 0;
+        return;
+    }
+    if (!isStep2Valid.value) {
+        toast.add({ severity: 'warn', summary: 'No Items', detail: 'Please add at least one item', life: 3000 });
+        activeStep.value = 1;
+        return;
+    }
+    if (!isStep3Valid.value) {
+        toast.add({ severity: 'warn', summary: 'Purpose Required', detail: 'Purpose must be at least 20 characters', life: 3000 });
+        activeStep.value = 2;
+        return;
+    }
+
     confirm.require({
         message: 'Submit this requisition for approval? You will not be able to edit it after submission.',
         header:  'Confirm Submission',
         icon:    'pi pi-exclamation-triangle',
         accept:  () => {
-            router.post(route('tenant.procurement.requisitions.store'), buildFormData('submitted'), {
+            isSubmitting.value = true;
+            
+            router.post(route('tenant.requisitions.store'), buildFormData('submitted'), {
                 forceFormData: true,
-                onSuccess: () => toast.add({ severity: 'success', summary: 'Submitted', detail: 'Requisition submitted for approval', life: 3000 }),
-                onError:   () => toast.add({ severity: 'error',   summary: 'Error',     detail: 'Failed to submit requisition',       life: 3000 }),
+                preserveState: true,
+                onSuccess: () => {
+                    isSubmitting.value = false;
+                    toast.add({ severity: 'success', summary: 'Submitted', detail: 'Requisition submitted for approval', life: 3000 });
+                },
+                onError: (errors) => {
+                    isSubmitting.value = false;
+                    console.error('[submitForApproval] errors:', errors);
+                    const errorMsg = Object.values(errors).flat().join(', ');
+                    toast.add({ severity: 'error', summary: 'Submit Failed', detail: errorMsg || 'Failed to submit requisition', life: 5000 });
+                },
             });
         },
     });
@@ -279,7 +365,7 @@ const startAutoSave = () => {
     autoSaveInterval.value = setInterval(async () => {
         if (!form.department_id || !form.branch_id) return;
         try {
-            const { data } = await axios.post(route('tenant.procurement.requisitions.autosave'), {
+            const { data } = await axios.post(route('tenant.requisitions.autosave'), {
                 id:               draftPRId.value,
                 department_id:    form.department_id,
                 branch_id:        form.branch_id,
@@ -295,17 +381,22 @@ const startAutoSave = () => {
                 draftPRId.value   = data.pr_id;
                 lastSavedAt.value = new Date();
             }
-        } catch { /* silent — never annoy the user */ }
+        } catch { /* silent */ }
     }, 30000);
 };
 
-const stopAutoSave = () => { if (autoSaveInterval.value) clearInterval(autoSaveInterval.value); };
+const stopAutoSave = () => { 
+    if (autoSaveInterval.value) clearInterval(autoSaveInterval.value); 
+};
 
 // ─────────────────────────────────────────────
 // Unsaved-changes browser warning
 // ─────────────────────────────────────────────
 const handleBeforeUnload = (e) => {
-    if (hasUnsavedChanges.value) { e.preventDefault(); e.returnValue = ''; }
+    if (hasUnsavedChanges.value) { 
+        e.preventDefault(); 
+        e.returnValue = ''; 
+    }
 };
 
 // ─────────────────────────────────────────────
@@ -314,7 +405,15 @@ const handleBeforeUnload = (e) => {
 onMounted(() => {
     startAutoSave();
     window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Show errors from server if any
+    if (props.errors && Object.keys(props.errors).length > 0) {
+        console.error('[onMounted] Server errors:', props.errors);
+        const errorMsg = Object.values(props.errors).flat().join(', ');
+        toast.add({ severity: 'error', summary: 'Server Error', detail: errorMsg, life: 5000 });
+    }
 });
+
 onBeforeUnmount(() => {
     stopAutoSave();
     window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -338,9 +437,7 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- ══════════════════════════════════
-                 STEP 1 — Basic Information
-                 ══════════════════════════════════ -->
+            <!-- STEP 1 — Basic Information -->
             <Card v-if="activeStep === 0" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
@@ -353,7 +450,7 @@ onBeforeUnmount(() => {
 
                         <div class="flex flex-col gap-1">
                             <label class="font-semibold text-sm">Department <span class="text-red-500">*</span></label>
-                            <Dropdown
+                            <Select
                                 v-model="form.department_id"
                                 :options="props.departments"
                                 optionLabel="name"
@@ -366,7 +463,7 @@ onBeforeUnmount(() => {
 
                         <div class="flex flex-col gap-1">
                             <label class="font-semibold text-sm">Branch <span class="text-red-500">*</span></label>
-                            <Dropdown
+                            <Select
                                 v-model="form.branch_id"
                                 :options="props.branches"
                                 optionLabel="name"
@@ -378,10 +475,6 @@ onBeforeUnmount(() => {
 
                         <div class="flex flex-col gap-1">
                             <label class="font-semibold text-sm">Required By Date <span class="text-red-500">*</span></label>
-                            <!--
-                                PrimeVue v3? Replace DatePicker with Calendar
-                                AND swap the import at the top of <script setup>.
-                            -->
                             <DatePicker
                                 v-model="form.required_by_date"
                                 :minDate="new Date()"
@@ -406,14 +499,12 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- ══════════════════════════════════
-                 STEP 2 — Add Items
-                 ══════════════════════════════════ -->
+            <!-- STEP 2 — Add Items -->
             <Card v-if="activeStep === 1" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
                         <Package :size="22" class="text-blue-600" />
-                        <span>Add Items</span>
+                        <span>Add Items ({{ form.items.length }})</span>
                     </div>
                 </template>
                 <template #content>
@@ -429,14 +520,23 @@ onBeforeUnmount(() => {
                                     :suggestions="itemSearchResults"
                                     optionLabel="name"
                                     placeholder="Type item name or code…"
-                                    forceSelection
+                                    :forceSelection="false"
+                                    :dropdown="true"
                                     class="w-full"
                                     @complete="searchItems"
-                                />
+                                    :loading="isSearching"
+                                >
+                                    <template #option="slotProps">
+                                        <div class="flex flex-col">
+                                            <span class="font-semibold">{{ slotProps.option.name }}</span>
+                                            <span class="text-xs text-gray-500">{{ slotProps.option.code }} | {{ slotProps.option.unit }} | {{ slotProps.option.unit_price }} BDT</span>
+                                        </div>
+                                    </template>
+                                </AutoComplete>
                             </div>
 
                             <div class="md:col-span-2 flex flex-col gap-1">
-                                <label class="font-semibold text-sm">Quantity</label>
+                                <label class="font-semibold text-sm">Quantity <span class="text-red-500">*</span></label>
                                 <InputNumber
                                     v-model="itemQuantity"
                                     :min="0.01"
@@ -451,7 +551,9 @@ onBeforeUnmount(() => {
                                     v-model="itemPrice"
                                     :min="0"
                                     :minFractionDigits="2"
+                                    :maxFractionDigits="2"
                                     class="w-full"
+                                    :placeholder="selectedItem?.unit_price?.toString() || '0.00'"
                                 />
                             </div>
 
@@ -461,14 +563,21 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div class="md:col-span-1">
-                                <Button label="Add" icon="pi pi-plus" severity="success" class="w-full" @click="addItem" />
+                                <Button 
+                                    label="Add" 
+                                    icon="pi pi-plus" 
+                                    severity="success" 
+                                    class="w-full" 
+                                    @click="addItem"
+                                    :disabled="!selectedItem" 
+                                />
                             </div>
 
                         </div>
                     </div>
 
                     <!-- Items table -->
-                    <DataTable :value="form.items" :paginator="form.items.length > 10" :rows="10" class="mb-4">
+                    <DataTable :value="form.items" class="mb-4">
                         <template #empty>
                             <div class="text-center py-10 text-gray-400">
                                 <Package :size="48" class="mx-auto mb-3 opacity-40" />
@@ -476,11 +585,11 @@ onBeforeUnmount(() => {
                             </div>
                         </template>
 
-                        <Column field="item_code" header="Code"  style="width:10%" />
-                        <Column field="item_name" header="Item"  style="width:25%" />
-                        <Column field="unit"      header="Unit"  style="width:8%" />
+                        <Column field="item_code" header="Code" style="width:12%" />
+                        <Column field="item_name" header="Item" style="width:25%" />
+                        <Column field="unit" header="Unit" style="width:10%" />
 
-                        <Column header="Quantity" style="width:14%">
+                        <Column header="Qty" style="width:12%">
                             <template #body="{ data }">
                                 <InputNumber
                                     v-model="data.quantity"
@@ -492,12 +601,13 @@ onBeforeUnmount(() => {
                             </template>
                         </Column>
 
-                        <Column header="Unit Price" style="width:16%">
+                        <Column header="Unit Price" style="width:15%">
                             <template #body="{ data }">
                                 <InputNumber
                                     v-model="data.estimated_unit_price"
                                     :min="0"
                                     :minFractionDigits="2"
+                                    :maxFractionDigits="2"
                                     class="w-full"
                                     @input="updateItemTotal(data)"
                                 />
@@ -506,11 +616,11 @@ onBeforeUnmount(() => {
 
                         <Column header="Total (BDT)" style="width:14%">
                             <template #body="{ data }">
-                                <span class="font-semibold">{{ (data.estimated_total ?? 0).toFixed(2) }}</span>
+                                <span class="font-semibold">{{ (data.estimated_total || 0).toFixed(2) }}</span>
                             </template>
                         </Column>
 
-                        <Column style="width:8%">
+                        <Column style="width:12%">
                             <template #body="{ index }">
                                 <Button icon="pi pi-trash" severity="danger" text rounded @click="removeItem(index)" />
                             </template>
@@ -528,9 +638,7 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- ══════════════════════════════════
-                 STEP 3 — Justification
-                 ══════════════════════════════════ -->
+            <!-- STEP 3 — Justification -->
             <Card v-if="activeStep === 2" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
@@ -543,7 +651,7 @@ onBeforeUnmount(() => {
                     <div class="mb-6">
                         <label class="font-semibold text-sm block mb-1">
                             Purpose <span class="text-red-500">*</span>
-                            <span class="font-normal text-gray-500 ml-1">(Why are these items needed?)</span>
+                            <span class="font-normal text-gray-500 ml-1">(Why are these items needed? Minimum 20 characters)</span>
                         </label>
                         <Textarea
                             v-model="form.purpose"
@@ -552,9 +660,9 @@ onBeforeUnmount(() => {
                             class="w-full"
                             autoResize
                         />
-                        <small :class="purposeCharCount < 20 ? 'text-red-500' : 'text-gray-400'">
+                        <small :class="purposeCharCount < 20 ? 'text-red-500' : 'text-green-600'">
                             {{ purposeCharCount }} / 1000 characters
-                            <span v-if="purposeCharCount < 20"> — minimum 20 required</span>
+                            <span v-if="purposeCharCount < 20"> — need {{ 20 - purposeCharCount }} more</span>
                         </small>
                     </div>
 
@@ -579,7 +687,7 @@ onBeforeUnmount(() => {
                             @remove="onFileRemove"
                         >
                             <template #empty>
-                                <p class="text-gray-400 text-sm">Drag &amp; drop files here, or click to browse.</p>
+                                <p class="text-gray-400 text-sm">Drag & drop files here, or click to browse.</p>
                             </template>
                         </FileUpload>
                     </div>
@@ -592,36 +700,34 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- ══════════════════════════════════
-                 STEP 4 — Review & Submit
-                 ══════════════════════════════════ -->
+            <!-- STEP 4 — Review & Submit -->
             <Card v-if="activeStep === 3" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
                         <Eye :size="22" class="text-blue-600" />
-                        <span>Review &amp; Submit</span>
+                        <span>Review & Submit</span>
                     </div>
                 </template>
                 <template #content>
 
                     <!-- Basic info -->
-                    <div class="mb-2">
+                    <div class="mb-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold">Basic Information</h3>
+                            <h3 class="font-bold text-lg">Basic Information</h3>
                             <Button label="Edit" text size="small" @click="goToStep(0)" />
                         </div>
-                        <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="grid grid-cols-2 gap-3 text-sm bg-gray-50 p-3 rounded">
                             <div>
                                 <span class="text-gray-500">Department:</span>
-                                <span class="ml-2 font-semibold">{{ props.departments.find(d => d.id === form.department_id)?.name ?? '—' }}</span>
+                                <span class="ml-2 font-semibold">{{ props.departments.find(d => d.id === form.department_id)?.name || '—' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Branch:</span>
-                                <span class="ml-2 font-semibold">{{ props.branches.find(b => b.id === form.branch_id)?.name ?? '—' }}</span>
+                                <span class="ml-2 font-semibold">{{ props.branches.find(b => b.id === form.branch_id)?.name || '—' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Required By:</span>
-                                <span class="ml-2 font-semibold">{{ form.required_by_date ?? '—' }}</span>
+                                <span class="ml-2 font-semibold">{{ form.required_by_date || '—' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Priority:</span>
@@ -633,23 +739,24 @@ onBeforeUnmount(() => {
                     <Divider />
 
                     <!-- Items -->
-                    <div class="mb-2">
+                    <div class="mb-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold">Items ({{ form.items.length }})</h3>
+                            <h3 class="font-bold text-lg">Items ({{ form.items.length }})</h3>
                             <Button label="Edit" text size="small" @click="goToStep(1)" />
                         </div>
-                        <DataTable :value="form.items" size="small">
-                            <Column field="item_name"            header="Item"       />
-                            <Column field="quantity"             header="Qty"        />
-                            <Column field="unit"                 header="Unit"       />
-                            <Column field="estimated_unit_price" header="Unit Price">
-                                <template #body="{ data }">{{ (data.estimated_unit_price ?? 0).toFixed(2) }}</template>
+                        <DataTable :value="form.items" size="small" class="text-sm">
+                            <Column field="item_code" header="Code" style="width:15%" />
+                            <Column field="item_name" header="Item" style="width:30%" />
+                            <Column field="quantity" header="Qty" style="width:10%" />
+                            <Column field="unit" header="Unit" style="width:10%" />
+                            <Column header="Unit Price" style="width:15%">
+                                <template #body="{ data }">{{ (data.estimated_unit_price || 0).toFixed(2) }}</template>
                             </Column>
-                            <Column field="estimated_total"      header="Total">
-                                <template #body="{ data }">{{ (data.estimated_total ?? 0).toFixed(2) }}</template>
+                            <Column header="Total" style="width:15%">
+                                <template #body="{ data }">{{ (data.estimated_total || 0).toFixed(2) }}</template>
                             </Column>
                         </DataTable>
-                        <p class="text-right mt-3 font-bold text-lg">Grand Total: {{ totalAmount.toFixed(2) }} BDT</p>
+                        <p class="text-right mt-3 font-bold text-lg text-blue-700">Grand Total: {{ totalAmount.toFixed(2) }} BDT</p>
                     </div>
 
                     <Divider />
@@ -657,17 +764,19 @@ onBeforeUnmount(() => {
                     <!-- Justification -->
                     <div>
                         <div class="flex items-center justify-between mb-3">
-                            <h3 class="font-bold">Justification</h3>
+                            <h3 class="font-bold text-lg">Justification</h3>
                             <Button label="Edit" text size="small" @click="goToStep(2)" />
                         </div>
-                        <div class="text-sm space-y-1">
-                            <p class="text-gray-500">Purpose:</p>
-                            <p class="whitespace-pre-wrap">{{ form.purpose }}</p>
-                            <template v-if="form.justification">
-                                <p class="text-gray-500 mt-2">Additional Details:</p>
+                        <div class="text-sm space-y-2 bg-gray-50 p-3 rounded">
+                            <div>
+                                <p class="text-gray-500 font-semibold">Purpose:</p>
+                                <p class="whitespace-pre-wrap">{{ form.purpose }}</p>
+                            </div>
+                            <div v-if="form.justification">
+                                <p class="text-gray-500 font-semibold">Additional Details:</p>
                                 <p class="whitespace-pre-wrap">{{ form.justification }}</p>
-                            </template>
-                            <p v-if="form.attachments.length" class="text-gray-500 mt-2">
+                            </div>
+                            <p v-if="form.attachments?.length" class="text-gray-500">
                                 Attachments: {{ form.attachments.length }} file(s)
                             </p>
                         </div>
@@ -676,9 +785,7 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- ══════════════════════════════════
-                 Navigation bar (always visible)
-                 ══════════════════════════════════ -->
+            <!-- Navigation bar -->
             <Card>
                 <template #content>
                     <div class="flex justify-between items-center">
@@ -688,17 +795,27 @@ onBeforeUnmount(() => {
                             icon="pi pi-arrow-left"
                             severity="secondary"
                             @click="prevStep"
+                            :disabled="isSubmitting"
                         />
                         <div v-else />
 
                         <div class="flex gap-3">
-                            <Button label="Save as Draft" icon="pi pi-save" severity="secondary" outlined @click="saveDraft" />
+                            <Button 
+                                label="Save as Draft" 
+                                icon="pi pi-save" 
+                                severity="secondary" 
+                                outlined 
+                                @click="saveDraft" 
+                                :loading="isSubmitting"
+                                :disabled="!form.department_id || !form.branch_id"
+                            />
                             <Button
                                 v-if="activeStep < steps.length - 1"
                                 label="Next"
                                 icon="pi pi-arrow-right"
                                 iconPos="right"
                                 @click="nextStep"
+                                :disabled="isSubmitting"
                             />
                             <Button
                                 v-else
@@ -706,6 +823,7 @@ onBeforeUnmount(() => {
                                 icon="pi pi-check"
                                 severity="success"
                                 @click="submitForApproval"
+                                :loading="isSubmitting"
                             />
                         </div>
                     </div>
@@ -719,7 +837,6 @@ onBeforeUnmount(() => {
 
         </div>
 
-        <!-- ConfirmDialog must be inside the layout root -->
         <ConfirmDialog />
 
     </TenantLayout>

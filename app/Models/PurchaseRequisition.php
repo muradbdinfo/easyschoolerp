@@ -82,9 +82,12 @@ class PurchaseRequisition extends Model
             }
         });
 
-        static::saving(function ($pr) {
-            // Auto-calculate total from items
-            $pr->calculateTotal();
+        static::updating(function ($pr) {
+            // Only recalculate on UPDATE — items don't exist during initial INSERT
+            if ($pr->exists) {
+                $pr->total_amount    = $pr->items()->sum('estimated_total');
+                $pr->estimated_amount = $pr->total_amount;
+            }
         });
     }
 
@@ -171,10 +174,7 @@ class PurchaseRequisition extends Model
         return $this->belongsTo(User::class, 'rejected_by');
     }
 
-    public function purchaseOrder(): BelongsTo
-    {
-        return $this->belongsTo(PurchaseOrder::class);
-    }
+    // purchaseOrder() relation added in Week 7 when PurchaseOrder model is created
 
     /**
      * Scopes
