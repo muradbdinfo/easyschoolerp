@@ -1,5 +1,8 @@
 <template>
     <AdminLayout page-title="Edit Tenant">
+        <!-- ADD THIS: Toast Component -->
+        <Toast position="top-right" />
+        
         <div class="max-w-3xl mx-auto">
             <Card>
                 <template #title>
@@ -131,8 +134,8 @@
                                     class="w-full"
                                     :invalid="!!form.errors.contact_email"
                                 />
-                                <small class="text-red-500" v-if="form.errors.contact_email">
-                                    {{ form.errors.contact_email }}
+                                <small class="text-red-500" v-if="form.errors.email">
+                                    {{ form.errors.email }}
                                 </small>
                             </div>
 
@@ -189,6 +192,8 @@
 
 <script setup>
 import { useForm, router } from '@inertiajs/vue3';
+// ADD THIS: Import useToast
+import { useToast } from 'primevue/usetoast';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -196,10 +201,15 @@ import InputText from 'primevue/inputtext';
 import InputNumber from 'primevue/inputnumber';
 import Dropdown from 'primevue/dropdown';
 import Divider from 'primevue/divider';
+// ADD THIS: Import Toast component
+import Toast from 'primevue/toast';
 
 const props = defineProps({
     tenant: Object,
 });
+
+// ADD THIS: Initialize toast
+const toast = useToast();
 
 const planOptions = [
     { label: 'Basic - $50/month', value: 'basic' },
@@ -231,7 +241,22 @@ const goBack = () => {
 const submit = () => {
     form.put(`/admin/tenants/${props.tenant.id}`, {
         onSuccess: () => {
-            // Redirect handled by controller
+            // ADD THIS: Show success toast
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: 'Tenant updated successfully!',
+                life: 3000
+            });
+        },
+        onError: () => {
+            // ADD THIS: Show error toast
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'Failed to update tenant. Please check the form.',
+                life: 5000
+            });
         },
     });
 };

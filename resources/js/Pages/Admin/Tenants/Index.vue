@@ -10,7 +10,7 @@
                 <Button 
                     label="Create Tenant" 
                     icon="pi pi-plus"
-                    @click="$inertia.visit(route('admin.tenants.create'))"
+                    @click="createTenant"
                 />
             </div>
 
@@ -69,7 +69,7 @@
                                 <div>
                                     <div class="font-semibold text-gray-900">{{ slotProps.data.name }}</div>
                                     <div class="text-sm text-gray-500">
-                                        {{ slotProps.data.subdomain }}.erp.local
+                                        {{ slotProps.data.subdomain }}.easyschool.local
                                     </div>
                                 </div>
                             </template>
@@ -303,8 +303,13 @@ const planOptions = [
     { label: 'Enterprise', value: 'enterprise' },
 ];
 
+// Use direct URLs instead of route() helper
+const createTenant = () => {
+    router.visit('/admin/tenants/create');
+};
+
 const search = () => {
-    router.get(route('admin.tenants.index'), searchForm, {
+    router.get('/admin/tenants', searchForm, {
         preserveState: true,
         preserveScroll: true,
     });
@@ -313,7 +318,7 @@ const search = () => {
 const debouncedSearch = debounce(search, 500);
 
 const onPage = (event) => {
-    router.get(route('admin.tenants.index'), {
+    router.get('/admin/tenants', {
         ...searchForm,
         page: event.page + 1,
     }, {
@@ -328,7 +333,7 @@ const viewTenant = (tenant) => {
 };
 
 const editTenant = (tenant) => {
-    router.visit(route('admin.tenants.edit', tenant.id));
+    router.visit(`/admin/tenants/${tenant.id}/edit`);
 };
 
 const confirmSuspend = (tenant) => {
@@ -338,7 +343,7 @@ const confirmSuspend = (tenant) => {
         icon: 'pi pi-exclamation-triangle',
         acceptClass: 'p-button-danger',
         accept: () => {
-            router.post(route('admin.tenants.suspend', tenant.id), {}, {
+            router.post(`/admin/tenants/${tenant.id}/suspend`, {}, {
                 onSuccess: () => {
                     toast.success('Tenant suspended successfully');
                 },
@@ -354,7 +359,7 @@ const confirmActivate = (tenant) => {
         icon: 'pi pi-check-circle',
         acceptClass: 'p-button-success',
         accept: () => {
-            router.post(route('admin.tenants.activate', tenant.id), {}, {
+            router.post(`/admin/tenants/${tenant.id}/activate`, {}, {
                 onSuccess: () => {
                     toast.success('Tenant activated successfully');
                 },

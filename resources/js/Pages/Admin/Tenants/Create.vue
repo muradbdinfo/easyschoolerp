@@ -1,5 +1,8 @@
 <template>
     <AdminLayout page-title="Create Tenant">
+        <!-- ADD THIS: Toast Component -->
+        <Toast position="top-right" />
+        
         <div class="max-w-3xl mx-auto">
             <Card>
                 <template #title>
@@ -228,6 +231,8 @@
 
 <script setup>
 import { useForm, router } from '@inertiajs/vue3';
+// ADD THIS: Import useToast
+import { useToast } from 'primevue/usetoast';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -236,6 +241,11 @@ import InputNumber from 'primevue/inputnumber';
 import Dropdown from 'primevue/dropdown';
 import Divider from 'primevue/divider';
 import Password from 'primevue/password';
+// ADD THIS: Import Toast component
+import Toast from 'primevue/toast';
+
+// ADD THIS: Initialize toast
+const toast = useToast();
 
 const planOptions = [
     { label: 'Basic - $50/month', value: 'basic' },
@@ -265,7 +275,24 @@ const goBack = () => {
 const submit = () => {
     form.post('/admin/tenants', {
         onSuccess: () => {
-            // Redirect handled by controller
+            // ADD THIS: Show success toast
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: 'Tenant created successfully with admin user!',
+                life: 3000
+            });
+            // Reset form after success
+            form.reset();
+        },
+        onError: () => {
+            // ADD THIS: Show error toast
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'Failed to create tenant. Please check the form.',
+                life: 5000
+            });
         },
     });
 };
