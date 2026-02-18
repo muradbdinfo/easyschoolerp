@@ -12,46 +12,33 @@ class Vendor extends Model
 {
     use HasFactory, SoftDeletes;
 
+    // ── Defaults: guarantee these are NEVER null in PHP ──────────────────────
+    protected $attributes = [
+        'type'               => 'supplier',
+        'status'             => 'active',
+        'rating'             => 0,
+        'payment_terms_days' => 30,
+        'credit_limit'       => 0,
+    ];
+
     protected $fillable = [
-        'code',
-        'name',
-        'type',
-        'contact_person',
-        'phone',
-        'email',
-        'address',
-        'city',
-        'postal_code',
-        'tax_id',
-        'business_registration',
-        'bank_details',
-        'rating',
-        'status',
-        'blacklist_reason',
-        'blacklisted_at',
-        'payment_terms_days',
-        'credit_limit',
-        'notes',
-        'documents',
-        'created_by',
-        'updated_by',
+        'code', 'name', 'type', 'contact_person', 'phone', 'email',
+        'address', 'city', 'postal_code', 'tax_id', 'business_registration',
+        'bank_details', 'rating', 'status', 'blacklist_reason', 'blacklisted_at',
+        'payment_terms_days', 'credit_limit', 'notes', 'documents',
+        'created_by', 'updated_by',
     ];
 
     protected $casts = [
-        'rating' => 'decimal:1',
-        'credit_limit' => 'decimal:2',
+        'rating'         => 'decimal:1',
+        'credit_limit'   => 'decimal:2',
         'blacklisted_at' => 'date',
-        'documents' => 'array',
+        'documents'      => 'array',
     ];
 
-    protected $appends = [
-        'type_label',
-        'status_badge',
-    ];
+    protected $appends = ['type_label', 'status_badge'];
 
-    /**
-     * Boot the model and auto-generate code
-     */
+    // ── Boot ─────────────────────────────────────────────────────────────────
     protected static function boot()
     {
         parent::boot();
@@ -61,21 +48,23 @@ class Vendor extends Model
                 $vendor->code = self::generateCode();
             }
         });
+
+        // Prevent NULL reaching the DB on ANY save (create OR update)
+        static::saving(function ($vendor) {
+            if (empty($vendor->type))   $vendor->type   = 'supplier';
+            if (empty($vendor->status)) $vendor->status = 'active';
+        });
     }
 
-    /**
-     * Generate unique vendor code
-     */
+    // ── Code generation ───────────────────────────────────────────────────────
     public static function generateCode(): string
     {
-        $lastVendor = self::withTrashed()->latest('id')->first();
-        $number = $lastVendor ? intval(substr($lastVendor->code, 4)) + 1 : 1;
+        $last   = self::withTrashed()->latest('id')->first();
+        $number = $last ? intval(substr($last->code, 4)) + 1 : 1;
         return 'VEN-' . str_pad($number, 5, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Relationships
-     */
+    // ── Relationships ─────────────────────────────────────────────────────────
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -91,50 +80,35 @@ class Vendor extends Model
         return $this->hasMany(PurchaseOrder::class);
     }
 
-    /**
-     * Accessors
-     */
+    // ── Accessors ─────────────────────────────────────────────────────────────
     public function getTypeLabelAttribute(): string
     {
         return match($this->type) {
-            'supplier' => 'Supplier',
-            'contractor' => 'Contractor',
+            'supplier'         => 'Supplier',
+            'contractor'       => 'Contractor',
             'service_provider' => 'Service Provider',
-            default => $this->type,
+            default            => $this->type ?? 'Unknown',
         };
     }
 
     public function getStatusBadgeAttribute(): array
     {
         return match($this->status) {
-            'active' => ['label' => 'Active', 'severity' => 'success'],
-            'inactive' => ['label' => 'Inactive', 'severity' => 'warning'],
+            'active'      => ['label' => 'Active',      'severity' => 'success'],
+            'inactive'    => ['label' => 'Inactive',    'severity' => 'warning'],
             'blacklisted' => ['label' => 'Blacklisted', 'severity' => 'danger'],
-            default => ['label' => $this->status, 'severity' => 'info'],
+            default       => ['label' => $this->status ?? 'Unknown', 'severity' => 'secondary'],
         };
     }
 
-    /**
-     * Scopes
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('status', 'active');
-    }
-
-    public function scopeBlacklisted($query)
-    {
-        return $query->where('status', 'blacklisted');
-    }
-
-    public function scopeByType($query, $type)
-    {
-        return $query->where('type', $type);
-    }
+    // ── Scopes ────────────────────────────────────────────────────────────────
+    public function scopeActive($query)        { return $query->where('status', 'active'); }
+    public function scopeBlacklisted($query)   { return $query->where('status', 'blacklisted'); }
+    public function scopeByType($query, $type) { return $query->where('type', $type); }
 
     public function scopeSearch($query, $search)
     {
-        return $query->where(function($q) use ($search) {
+        return $query->where(function ($q) use ($search) {
             $q->where('name', 'like', "%{$search}%")
               ->orWhere('code', 'like', "%{$search}%")
               ->orWhere('contact_person', 'like', "%{$search}%")
@@ -143,24 +117,22 @@ class Vendor extends Model
         });
     }
 
-    /**
-     * Business logic methods
-     */
+    // ── Business logic ────────────────────────────────────────────────────────
     public function blacklist(string $reason): void
     {
         $this->update([
-            'status' => 'blacklisted',
+            'status'           => 'blacklisted',
             'blacklist_reason' => $reason,
-            'blacklisted_at' => now(),
+            'blacklisted_at'   => now(),
         ]);
     }
 
     public function activate(): void
     {
         $this->update([
-            'status' => 'active',
+            'status'           => 'active',
             'blacklist_reason' => null,
-            'blacklisted_at' => null,
+            'blacklisted_at'   => null,
         ]);
     }
 

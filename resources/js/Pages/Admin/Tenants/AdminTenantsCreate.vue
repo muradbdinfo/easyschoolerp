@@ -1,5 +1,8 @@
 <template>
-    <AdminLayout page-title="Edit Tenant">
+    <AdminLayout page-title="Create Tenant">
+        <!-- ADD THIS: Toast Component -->
+        <Toast position="top-right" />
+        
         <div class="max-w-3xl mx-auto">
             <Card>
                 <template #title>
@@ -8,9 +11,9 @@
                             icon="pi pi-arrow-left" 
                             text 
                             rounded 
-                            @click="$inertia.visit(route('admin.tenants.index'))"
+                            @click="goBack"
                         />
-                        <span>Edit Tenant</span>
+                        <span>Create New Tenant</span>
                     </div>
                 </template>
                 <template #content>
@@ -36,18 +39,22 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Subdomain
+                                    Subdomain <span class="text-red-500">*</span>
                                 </label>
                                 <div class="flex items-center gap-2">
                                     <InputText 
-                                        :value="tenant.subdomain"
-                                        disabled
+                                        v-model="form.subdomain"
+                                        placeholder="greenvalley"
                                         class="flex-1"
+                                        :invalid="!!form.errors.subdomain"
                                     />
                                     <span class="text-gray-500">.easyschool.local</span>
                                 </div>
                                 <small class="text-gray-500 block mt-1">
-                                    Subdomain cannot be changed after creation
+                                    Only lowercase letters, numbers, and hyphens
+                                </small>
+                                <small class="text-red-500" v-if="form.errors.subdomain">
+                                    {{ form.errors.subdomain }}
                                 </small>
                             </div>
 
@@ -68,34 +75,15 @@
 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Status <span class="text-red-500">*</span>
+                                        Trial Period (Days) <span class="text-red-500">*</span>
                                     </label>
-                                    <Dropdown 
-                                        v-model="form.status"
-                                        :options="statusOptions"
-                                        optionLabel="label"
-                                        optionValue="value"
-                                        placeholder="Select Status"
+                                    <InputNumber 
+                                        v-model="form.trial_days"
+                                        :min="0"
+                                        :max="90"
                                         class="w-full"
                                     />
                                 </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Monthly Recurring Revenue (MRR) <span class="text-red-500">*</span>
-                                </label>
-                                <InputNumber 
-                                    v-model="form.mrr"
-                                    mode="currency"
-                                    currency="USD"
-                                    locale="en-US"
-                                    :min="0"
-                                    class="w-full"
-                                />
-                                <small class="text-gray-500 block mt-1">
-                                    Monthly subscription amount
-                                </small>
                             </div>
                         </div>
 
@@ -150,21 +138,75 @@
 
                         <Divider />
 
-                        <!-- Additional Information -->
-                        <div class="bg-gray-50 p-4 rounded-lg space-y-2">
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Database Name:</span>
-                                <span class="font-medium">{{ tenant.database_name }}</span>
+                        <!-- Admin User Account -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-semibold text-gray-900">Admin User Account</h3>
+                            <p class="text-sm text-gray-500">Create the first admin user for this tenant</p>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Admin Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText 
+                                    v-model="form.admin_name"
+                                    placeholder="e.g., John Smith"
+                                    class="w-full"
+                                    :invalid="!!form.errors.admin_name"
+                                />
+                                <small class="text-red-500" v-if="form.errors.admin_name">
+                                    {{ form.errors.admin_name }}
+                                </small>
                             </div>
-                            <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Created:</span>
-                                <span class="font-medium">{{ formatDate(tenant.created_at) }}</span>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Admin Email <span class="text-red-500">*</span>
+                                </label>
+                                <InputText 
+                                    v-model="form.admin_email"
+                                    type="email"
+                                    placeholder="admin@school.edu"
+                                    class="w-full"
+                                    :invalid="!!form.errors.admin_email"
+                                />
+                                <small class="text-red-500" v-if="form.errors.admin_email">
+                                    {{ form.errors.admin_email }}
+                                </small>
                             </div>
-                            <div class="flex justify-between text-sm" v-if="tenant.trial_ends_at">
-                                <span class="text-gray-600">Trial Ends:</span>
-                                <span class="font-medium">{{ formatDate(tenant.trial_ends_at) }}</span>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Password <span class="text-red-500">*</span>
+                                    </label>
+                                    <Password 
+                                        v-model="form.admin_password"
+                                        placeholder="Min 8 characters"
+                                        class="w-full"
+                                        :invalid="!!form.errors.admin_password"
+                                        toggleMask
+                                    />
+                                    <small class="text-red-500" v-if="form.errors.admin_password">
+                                        {{ form.errors.admin_password }}
+                                    </small>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Confirm Password <span class="text-red-500">*</span>
+                                    </label>
+                                    <Password 
+                                        v-model="form.admin_password_confirmation"
+                                        placeholder="Repeat password"
+                                        class="w-full"
+                                        :invalid="!!form.errors.admin_password_confirmation"
+                                        toggleMask
+                                    />
+                                </div>
                             </div>
                         </div>
+
+                        <Divider />
 
                         <!-- Actions -->
                         <div class="flex justify-end gap-3">
@@ -172,11 +214,11 @@
                                 label="Cancel" 
                                 severity="secondary" 
                                 outlined
-                                @click="$inertia.visit(route('admin.tenants.index'))"
+                                @click="goBack"
                             />
                             <Button 
                                 type="submit"
-                                label="Update Tenant" 
+                                label="Create Tenant" 
                                 :loading="form.processing"
                             />
                         </div>
@@ -188,7 +230,9 @@
 </template>
 
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { useForm, router } from '@inertiajs/vue3';
+// ADD THIS: Import useToast
+import { useToast } from 'primevue/usetoast';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -196,10 +240,12 @@ import InputText from 'primevue/inputtext';
 import InputNumber from 'primevue/inputnumber';
 import Dropdown from 'primevue/dropdown';
 import Divider from 'primevue/divider';
+import Password from 'primevue/password';
+// ADD THIS: Import Toast component
+import Toast from 'primevue/toast';
 
-const props = defineProps({
-    tenant: Object,
-});
+// ADD THIS: Initialize toast
+const toast = useToast();
 
 const planOptions = [
     { label: 'Basic - $50/month', value: 'basic' },
@@ -207,37 +253,47 @@ const planOptions = [
     { label: 'Enterprise - $200/month', value: 'enterprise' },
 ];
 
-const statusOptions = [
-    { label: 'Trial', value: 'trial' },
-    { label: 'Active', value: 'active' },
-    { label: 'Suspended', value: 'suspended' },
-    { label: 'Cancelled', value: 'cancelled' },
-];
-
 const form = useForm({
-    name: props.tenant.name,
-    plan: props.tenant.plan,
-    status: props.tenant.status,
-    contact_name: props.tenant.contact_name,
-    contact_email: props.tenant.contact_email,
-    contact_phone: props.tenant.contact_phone,
-    mrr: props.tenant.mrr || 0,
+    name: '',
+    subdomain: '',
+    plan: 'basic',
+    trial_days: 30,
+    contact_name: '',
+    contact_email: '',
+    contact_phone: '',
+    // Admin user fields
+    admin_name: '',
+    admin_email: '',
+    admin_password: '',
+    admin_password_confirmation: '',
 });
 
-const submit = () => {
-    form.put(route('admin.tenants.update', props.tenant.id), {
-        onSuccess: () => {
-            // Redirect handled by controller
-        },
-    });
+const goBack = () => {
+    router.visit('/admin/tenants');
 };
 
-const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
+const submit = () => {
+    form.post('/admin/tenants', {
+        onSuccess: () => {
+            // ADD THIS: Show success toast
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: 'Tenant created successfully with admin user!',
+                life: 3000
+            });
+            // Reset form after success
+            form.reset();
+        },
+        onError: () => {
+            // ADD THIS: Show error toast
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'Failed to create tenant. Please check the form.',
+                life: 5000
+            });
+        },
     });
 };
 </script>

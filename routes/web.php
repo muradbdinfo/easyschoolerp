@@ -13,6 +13,8 @@ use App\Http\Controllers\Tenant\VendorController;
 use App\Http\Controllers\Tenant\ItemController;
 use App\Http\Controllers\Tenant\ItemCategoryController;
 use App\Http\Controllers\Tenant\PurchaseRequisitionController;
+use App\Http\Controllers\Tenant\PurchaseOrderController;
+use App\Http\Controllers\Tenant\GoodsReceiptNoteController;
 use App\Http\Controllers\Tenant\DepartmentController;
 use App\Http\Controllers\Tenant\BranchController;
 
@@ -24,19 +26,17 @@ require __DIR__.'/auth.php';
 | Marketing Routes (Public)
 |--------------------------------------------------------------------------
 */
-
-Route::get('/',        fn () => Inertia::render('Marketing/Home'))->name('home');
-Route::get('/features',fn () => Inertia::render('Marketing/Features'))->name('features');
-Route::get('/pricing', fn () => Inertia::render('Marketing/Pricing'))->name('pricing');
-Route::get('/about',   fn () => Inertia::render('Marketing/About'))->name('about');
-Route::get('/contact', fn () => Inertia::render('Marketing/Contact'))->name('contact');
+Route::get('/',         fn () => Inertia::render('Marketing/Home'))->name('home');
+Route::get('/features', fn () => Inertia::render('Marketing/Features'))->name('features');
+Route::get('/pricing',  fn () => Inertia::render('Marketing/Pricing'))->name('pricing');
+Route::get('/about',    fn () => Inertia::render('Marketing/About'))->name('about');
+Route::get('/contact',  fn () => Inertia::render('Marketing/Contact'))->name('contact');
 
 /*
 |--------------------------------------------------------------------------
-| Admin Routes (Protected)
+| Admin Routes
 |--------------------------------------------------------------------------
 */
-
 Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -50,28 +50,23 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
 
 /*
 |--------------------------------------------------------------------------
-| Tenant Routes (Protected)
+| Tenant Routes
 |--------------------------------------------------------------------------
 */
-
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', fn () => Inertia::render('Tenant/Dashboard'))->name('dashboard');
 
-    /*
-    | Notifications
-    */
+    // ── Notifications ──────────────────────────────────────────────────────────
     Route::prefix('notifications')->name('notifications.')->group(function () {
-        Route::get('/',                           [NotificationController::class, 'index'])->name('index');
-        Route::get('/unread',                     [NotificationController::class, 'getUnread'])->name('unread');
-        Route::post('/{notification}/read',       [NotificationController::class, 'markAsRead'])->name('read');
-        Route::post('/mark-all-read',             [NotificationController::class, 'markAllAsRead'])->name('mark-all-read');
-        Route::delete('/{notification}',          [NotificationController::class, 'destroy'])->name('destroy');
+        Route::get('/',                    [NotificationController::class, 'index'])->name('index');
+        Route::get('/unread',              [NotificationController::class, 'getUnread'])->name('unread');
+        Route::post('/{notification}/read',[NotificationController::class, 'markAsRead'])->name('read');
+        Route::post('/mark-all-read',      [NotificationController::class, 'markAllAsRead'])->name('mark-all-read');
+        Route::delete('/{notification}',   [NotificationController::class, 'destroy'])->name('destroy');
     });
 
-    /*
-    | Procurement
-    */
+    // ── Procurement ────────────────────────────────────────────────────────────
     Route::prefix('procurement')->name('tenant.')->group(function () {
 
         // Vendors
@@ -88,57 +83,68 @@ Route::middleware(['auth'])->group(function () {
         Route::get('items-export',               [ItemController::class, 'export'])->name('items.export');
 
         // Item Categories
-        Route::get('categories',                       [ItemCategoryController::class, 'index'])->name('categories.index');
-        Route::post('categories',                      [ItemCategoryController::class, 'store'])->name('categories.store');
-        Route::put('categories/{category}',            [ItemCategoryController::class, 'update'])->name('categories.update');
-        Route::delete('categories/{category}',         [ItemCategoryController::class, 'destroy'])->name('categories.destroy');
-        Route::get('categories-list',                  [ItemCategoryController::class, 'list'])->name('categories.list');
+        Route::get('categories',             [ItemCategoryController::class, 'index'])->name('categories.index');
+        Route::post('categories',            [ItemCategoryController::class, 'store'])->name('categories.store');
+        Route::put('categories/{category}',  [ItemCategoryController::class, 'update'])->name('categories.update');
+        Route::delete('categories/{category}',[ItemCategoryController::class, 'destroy'])->name('categories.destroy');
+        Route::get('categories-list',        [ItemCategoryController::class, 'list'])->name('categories.list');
 
         // Purchase Requisitions
-    // Purchase Requisitions
-    Route::prefix('requisitions')->name('requisitions.')->group(function () {
+        Route::prefix('requisitions')->name('requisitions.')->group(function () {
+            // Static routes FIRST (before {requisition} wildcard)
+            Route::get('/',             [PurchaseRequisitionController::class, 'index'])->name('index');
+            Route::get('/create',       [PurchaseRequisitionController::class, 'create'])->name('create');
+            Route::post('/',            [PurchaseRequisitionController::class, 'store'])->name('store');
+            Route::post('/autosave',    [PurchaseRequisitionController::class, 'autosave'])->name('autosave');
+            Route::get('/search/items', [PurchaseRequisitionController::class, 'searchItems'])->name('search.items');
+            // Wildcard routes AFTER
+            Route::get('/{requisition}',                         [PurchaseRequisitionController::class, 'show'])->name('show');
+            Route::get('/{requisition}/edit',                    [PurchaseRequisitionController::class, 'edit'])->name('edit');
+            Route::put('/{requisition}',                         [PurchaseRequisitionController::class, 'update'])->name('update');
+            Route::delete('/{requisition}/attachments/{index}',  [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
+            Route::post('/{requisition}/approve',                [PurchaseRequisitionController::class, 'approve'])->name('approve');
+            Route::post('/{requisition}/reject',                 [PurchaseRequisitionController::class, 'reject'])->name('reject');
+        });
 
-        // ── Static routes FIRST (before any {requisition} wildcard) ──────────
-        Route::get('/',              [PurchaseRequisitionController::class, 'index'])->name('index');
-        Route::get('/create',        [PurchaseRequisitionController::class, 'create'])->name('create');
-        Route::post('/',             [PurchaseRequisitionController::class, 'store'])->name('store');
-        Route::post('/autosave',     [PurchaseRequisitionController::class, 'autosave'])->name('autosave');
-        Route::get('/search/items',  [PurchaseRequisitionController::class, 'searchItems'])->name('search.items');
+        // Purchase Orders
+        // Route names: tenant.purchase-orders.index/create/store/show/edit/update/destroy
+        Route::resource('purchase-orders', PurchaseOrderController::class);
+        Route::post('purchase-orders/{purchaseOrder}/send',   [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
+        Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+        Route::get('purchase-orders-approved-prs',            [PurchaseOrderController::class, 'approvedPRs'])->name('purchase-orders.approved-prs');
 
-        // ── Wildcard routes AFTER static ones ─────────────────────────────────
-        Route::get('/{requisition}',                                [PurchaseRequisitionController::class, 'show'])->name('show');
-        Route::get('/{requisition}/edit',                           [PurchaseRequisitionController::class, 'edit'])->name('edit');
-        Route::put('/{requisition}',                                [PurchaseRequisitionController::class, 'update'])->name('update');
-        Route::delete('/{requisition}/attachments/{index}',        [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
-
-   Route::post('/{requisition}/approve', [PurchaseRequisitionController::class, 'approve'])->name('approve');
-    Route::post('/{requisition}/reject',  [PurchaseRequisitionController::class, 'reject'])->name('reject');
-
+        // Goods Receipt Notes
+        // Route names: tenant.grn.index / tenant.grn.create / tenant.grn.store / tenant.grn.show
+        Route::resource('grn', GoodsReceiptNoteController::class)
+            ->only(['index', 'create', 'store', 'show']);
 
     });
 
-    });
-
-    /*
-    | Settings
-    */
+    // ── Settings ───────────────────────────────────────────────────────────────
     Route::prefix('settings')->name('tenant.settings.')->group(function () {
         Route::resource('departments', DepartmentController::class)->except(['show']);
         Route::resource('branches',    BranchController::class)->except(['show']);
     });
 
-    /*
-    | Assets (Week 8+)
-    */
+    // ── Assets (Week 8+) ───────────────────────────────────────────────────────
     Route::prefix('assets')->name('assets.')->group(function () {
-        // Asset Register, Categories, Transfers, Maintenance, Depreciation
+        // Uncomment as each module is built:
+        // Route::resource('categories', AssetCategoryController::class);
+        // Route::resource('register',   AssetController::class);
+        // Route::get('register/{asset}/qr', [AssetController::class, 'generateQR'])->name('register.qr');
+        // Route::resource('transfers',  AssetTransferController::class);
+        // Route::post('transfers/{transfer}/approve', [AssetTransferController::class, 'approve'])->name('transfers.approve');
+        // Route::resource('maintenance', AssetMaintenanceController::class);
+        // Route::post('maintenance/{maintenance}/complete', [AssetMaintenanceController::class, 'complete'])->name('maintenance.complete');
+        // Route::get('depreciation',    [DepreciationController::class, 'index'])->name('depreciation.index');
+        // Route::post('depreciation/run',[DepreciationController::class, 'run'])->name('depreciation.run');
+        // Route::resource('verification',VerificationController::class);
     });
 
-    /*
-    | Reports
-    */
+    // ── Reports (Week 11+) ─────────────────────────────────────────────────────
     Route::prefix('reports')->name('reports.')->group(function () {
-        // Procurement Reports, Asset Reports
+        // Route::get('procurement', [ReportController::class, 'procurement'])->name('procurement');
+        // Route::get('assets',      [ReportController::class, 'assets'])->name('assets');
     });
 
 });

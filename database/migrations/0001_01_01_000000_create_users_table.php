@@ -6,18 +6,42 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+
+            // All FKs stored as plain columns — constraints added later
+            // after tenants/departments/branches tables exist
+            $table->unsignedBigInteger('tenant_id')->nullable();
+            $table->unsignedBigInteger('department_id')->nullable();
+            $table->unsignedBigInteger('branch_id')->nullable();
+
+            // Identity
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
+
+            // Role
+            $table->enum('role', [
+                'director_admin',
+                'rector',
+                'principal',
+                'vice_principal',
+                'managing_director',
+                'deputy_managing_director',
+                'head_of_department',
+                'deputy_head',
+                'chief_coordinator',
+                'teacher',
+                'manager',
+                'officer',
+                'staff',
+            ])->default('staff');
+             $table->boolean('is_active')->default(true); // ← this was missing
+
             $table->timestamps();
         });
 
@@ -37,13 +61,10 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };
