@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import Toast        from 'primevue/toast';
 import Avatar       from 'primevue/avatar';
-import Badge        from 'primevue/badge';
 import Breadcrumb   from 'primevue/breadcrumb';
 import Select       from 'primevue/select';
 import Button       from 'primevue/button';
@@ -12,17 +11,18 @@ import OverlayPanel from 'primevue/overlaypanel';
 import {
     Menu as MenuIcon, X, Home, ShoppingCart, Box, BarChart3,
     Settings, HelpCircle, Users, Tag, FileText, Package, Truck,
-    Boxes, Folder, MoveRight, Wrench, TrendingDown, CheckSquare,
+    Boxes, Folder, MoveRight, Wrench, TrendingDown,
     LogOut, Building, Building2, GitBranch, ChevronDown, Bell,
+    ClipboardList, Layers,
 } from 'lucide-vue-next';
 
-// ─── Props ───────────────────────────────────────────────────────────────────
+// ------------------------------------------------------------------ Props ---
 const props = defineProps({
-    breadcrumbItems: { type: Array, default: () => [] },
-    title:           { type: String, default: '' },
+    breadcrumbItems: { type: Array,  default: () => [] },
+    title:           { type: String, default: ''       },
 });
 
-// ─── Page / auth ─────────────────────────────────────────────────────────────
+// --------------------------------------------------------------- Auth / page ---
 const page = usePage();
 
 const userName     = computed(() => page.props.auth?.user?.name ?? 'User');
@@ -44,41 +44,45 @@ const schoolInitials  = computed(() => {
     return w.length >= 2 ? w[0][0] + w[1][0] : schoolName.value.substring(0, 2).toUpperCase();
 });
 
-// Unread notification count (injected via HandleInertiaRequests)
 const unreadCount = computed(() => page.props.unreadNotificationsCount ?? 0);
 
-// ─── Sidebar state ───────────────────────────────────────────────────────────
+// ---------------------------------------------------------- Sidebar state ---
 const sidebarCollapsed    = ref(false);
 const procurementExpanded = ref(false);
 const assetsExpanded      = ref(false);
+const reportsExpanded     = ref(false);
 const settingsExpanded    = ref(false);
 
 const toggleSidebar     = () => { sidebarCollapsed.value    = !sidebarCollapsed.value; };
 const toggleProcurement = () => { procurementExpanded.value = !procurementExpanded.value; };
 const toggleAssets      = () => { assetsExpanded.value      = !assetsExpanded.value; };
+const toggleReports     = () => { reportsExpanded.value     = !reportsExpanded.value; };
 const toggleSettings    = () => { settingsExpanded.value    = !settingsExpanded.value; };
 
-// Auto-expand section based on current URL
-const url = page.url;
-if (url.startsWith('/procurement')) procurementExpanded.value = true;
-if (url.startsWith('/assets'))      assetsExpanded.value      = true;
-if (url.startsWith('/settings'))    settingsExpanded.value    = true;
+// Auto-expand the active section on load
+const currentUrl = page.url;
+if (currentUrl.startsWith('/procurement')) procurementExpanded.value = true;
+if (currentUrl.startsWith('/assets'))      assetsExpanded.value      = true;
+if (currentUrl.startsWith('/reports'))     reportsExpanded.value     = true;
+if (currentUrl.startsWith('/settings'))    settingsExpanded.value    = true;
 
-// Active detection — exact prefix match, but avoid /procurement matching /procurement/purchase-orders AND /procurement
-const isActive = (path) => page.url.startsWith(path);
+// Active helpers
+const isActive = (path)  => page.url.startsWith(path);
+const isExact  = (path)  => page.url === path || page.url === path + '/';
 
-// ─── Branch selector ─────────────────────────────────────────────────────────
+// ------------------------------------------------------- Branch selector ---
 const selectedBranch = ref(null);
-const branches = computed(() => page.props.branches ?? []);
+const branches       = computed(() => page.props.branches ?? []);
 
-// ─── Notification panel ──────────────────────────────────────────────────────
-const notifPanel = ref();
+// ---------------------------------------------------- Notification panel ---
+const notifPanel    = ref();
 const notifications = computed(() => page.props.recentNotifications ?? []);
+
 const toggleNotifPanel = (e) => notifPanel.value.toggle(e);
 
-const markAllRead = () => {
+const markAllRead = () =>
     router.post(route('notifications.mark-all-read'), {}, { preserveScroll: true });
-};
+
 const openNotification = (notif) => {
     router.post(route('notifications.read', notif.id), {}, {
         preserveScroll: true,
@@ -87,8 +91,8 @@ const openNotification = (notif) => {
     notifPanel.value.hide();
 };
 
-// ─── Profile menu ────────────────────────────────────────────────────────────
-const profileMenu = ref();
+// --------------------------------------------------------- Profile menu ---
+const profileMenu       = ref();
 const toggleProfileMenu = (e) => profileMenu.value.toggle(e);
 const profileMenuItems  = [
     { label: 'My Profile',      icon: 'pi pi-user',     command: () => router.visit('/profile') },
@@ -97,31 +101,33 @@ const profileMenuItems  = [
     { label: 'Logout',          icon: 'pi pi-sign-out', command: () => router.post(route('logout')) },
 ];
 
-// ─── Navigation items ─────────────────────────────────────────────────────────
+// ---------------------------------------------------------- Nav items ---
 const topMenuItems = [
     { label: 'Dashboard', icon: Home,       route: '/dashboard' },
-    { label: 'Reports',   icon: BarChart3,  route: '/reports'   },
     { label: 'Help',      icon: HelpCircle, route: '/help'      },
 ];
 
-// FIX: Purchase Orders path is /procurement/purchase-orders (not /procurement/orders)
 const procurementItems = [
-    { label: 'Vendors',         icon: Users,    route: '/procurement/vendors',          badge: null },
-    { label: 'Categories',      icon: Folder,   route: '/procurement/categories',       badge: null },
-    { label: 'Items',           icon: Tag,      route: '/procurement/items',            badge: null },
-    { label: 'Requisitions',    icon: FileText, route: '/procurement/requisitions',     badge: null },
-    { label: 'Purchase Orders', icon: Package,  route: '/procurement/purchase-orders',  badge: null },
-    { label: 'Goods Receipt',   icon: Truck,    route: '/procurement/grn',              badge: null },
+    { label: 'Vendors',         icon: Users,    route: '/procurement/vendors'         },
+    { label: 'Categories',      icon: Folder,   route: '/procurement/categories'      },
+    { label: 'Items',           icon: Tag,      route: '/procurement/items'           },
+    { label: 'Requisitions',    icon: FileText, route: '/procurement/requisitions'    },
+    { label: 'Purchase Orders', icon: Package,  route: '/procurement/purchase-orders' },
+    { label: 'Goods Receipt',   icon: Truck,    route: '/procurement/grn'             },
 ];
 
-// Assets items — routes ready for Week 8
+// exact: true on Register prevents /assets from matching all /assets/* pages
 const assetsItems = [
-    { label: 'Register',     icon: Boxes,        route: '/assets/register',     badge: null },
-    { label: 'Categories',   icon: Folder,       route: '/assets/categories',   badge: null },
-    { label: 'Transfers',    icon: MoveRight,    route: '/assets/transfers',    badge: null },
-    { label: 'Maintenance',  icon: Wrench,       route: '/assets/maintenance',  badge: null },
-    { label: 'Depreciation', icon: TrendingDown, route: '/assets/depreciation', badge: null },
-    { label: 'Verification', icon: CheckSquare,  route: '/assets/verification', badge: null },
+    { label: 'Register',     icon: Boxes,        route: '/assets',             exact: true },
+    { label: 'Categories',   icon: Folder,       route: '/assets/categories'              },
+    { label: 'Transfers',    icon: MoveRight,    route: '/assets/transfers'               },
+    { label: 'Maintenance',  icon: Wrench,       route: '/assets/maintenance'             },
+    { label: 'Depreciation', icon: TrendingDown, route: '/assets/depreciation'            },
+];
+
+const reportsItems = [
+    { label: 'Procurement', icon: ClipboardList, route: '/reports/procurement' },
+    { label: 'Assets',      icon: Layers,        route: '/reports/assets'      },
 ];
 
 const settingsItems = [
@@ -129,13 +135,13 @@ const settingsItems = [
     { label: 'Branches',    icon: GitBranch, route: '/settings/branches'    },
 ];
 
-// Time ago helper for notifications
+// ----------------------------------------------------------- Time ago ---
 const timeAgo = (dateStr) => {
     const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
-    if (diff < 60)   return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-    if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
-    return `${Math.floor(diff/86400)}d ago`;
+    if (diff < 60)    return `${diff}s ago`;
+    if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
 };
 </script>
 
@@ -143,14 +149,16 @@ const timeAgo = (dateStr) => {
     <div class="min-h-screen bg-gray-50 flex">
         <Toast position="top-right" />
 
-        <!-- ═══ SIDEBAR ══════════════════════════════════════════════════════ -->
+        <!-- ================================================================ -->
+        <!-- SIDEBAR                                                           -->
+        <!-- ================================================================ -->
         <aside
             :class="['bg-white border-r border-gray-200 transition-all duration-300 shadow-sm flex-shrink-0',
                      sidebarCollapsed ? 'w-[72px]' : 'w-64']"
         >
             <div class="flex flex-col h-screen sticky top-0">
 
-                <!-- Logo + collapse -->
+                <!-- Logo + collapse toggle -->
                 <div class="p-4 border-b border-gray-100 flex items-center justify-between gap-2">
                     <div v-if="!sidebarCollapsed" class="flex items-center gap-3 min-w-0">
                         <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700
@@ -162,36 +170,42 @@ const timeAgo = (dateStr) => {
                             <p class="text-xs text-gray-400 truncate">{{ schoolSubdomain }}</p>
                         </div>
                     </div>
-                    <button @click="toggleSidebar" class="text-gray-400 hover:text-gray-600 transition flex-shrink-0">
-                        <X       :size="20" v-if="!sidebarCollapsed" />
+                    <button @click="toggleSidebar"
+                        class="text-gray-400 hover:text-gray-600 transition flex-shrink-0">
+                        <X        :size="20" v-if="!sidebarCollapsed" />
                         <MenuIcon :size="20" v-else />
                     </button>
                 </div>
 
-                <!-- Nav -->
+                <!-- Navigation -->
                 <nav class="flex-1 p-3 overflow-y-auto space-y-0.5">
 
-                    <!-- Top-level -->
+                    <!-- Top-level links (Dashboard, Help) -->
                     <Link
-                        v-for="item in topMenuItems" :key="item.route" :href="item.route"
+                        v-for="item in topMenuItems"
+                        :key="item.route"
+                        :href="item.route"
                         :title="sidebarCollapsed ? item.label : undefined"
                         :class="['flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group',
-                                 isActive(item.route) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50']"
+                                 isActive(item.route)
+                                     ? 'bg-blue-50 text-blue-700 font-medium'
+                                     : 'text-gray-700 hover:bg-gray-50']"
                     >
                         <component :is="item.icon" :size="19" class="flex-shrink-0"
                             :class="isActive(item.route) ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'" />
                         <span v-if="!sidebarCollapsed">{{ item.label }}</span>
                     </Link>
 
-                    <!-- ── Modules label ──────────────────── -->
+                    <!-- ─ MODULES section ─ -->
                     <div class="pt-3">
                         <p v-if="!sidebarCollapsed"
                             class="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">
                             Modules
                         </p>
 
-                        <!-- Procurement -->
-                        <button @click="toggleProcurement"
+                        <!-- ── Procurement ── -->
+                        <button
+                            @click="toggleProcurement"
                             :title="sidebarCollapsed ? 'Procurement' : undefined"
                             :class="['w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all',
                                      isActive('/procurement') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50']"
@@ -203,18 +217,23 @@ const timeAgo = (dateStr) => {
                                 :class="{ 'rotate-180': procurementExpanded }" />
                         </button>
                         <div v-show="!sidebarCollapsed && procurementExpanded" class="ml-7 mt-0.5 space-y-0.5">
-                            <Link v-for="sub in procurementItems" :key="sub.route" :href="sub.route"
+                            <Link
+                                v-for="sub in procurementItems"
+                                :key="sub.route"
+                                :href="sub.route"
                                 :class="['flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
-                                         isActive(sub.route) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50']"
+                                         isActive(sub.route)
+                                             ? 'bg-blue-50 text-blue-700 font-medium'
+                                             : 'text-gray-600 hover:bg-gray-50']"
                             >
                                 <component :is="sub.icon" :size="15" class="flex-shrink-0" />
                                 <span class="flex-1">{{ sub.label }}</span>
-                                <Badge v-if="sub.badge" :value="sub.badge" severity="danger" />
                             </Link>
                         </div>
 
-                        <!-- Assets -->
-                        <button @click="toggleAssets"
+                        <!-- ── Assets ── -->
+                        <button
+                            @click="toggleAssets"
                             :title="sidebarCollapsed ? 'Assets' : undefined"
                             :class="['w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all mt-0.5',
                                      isActive('/assets') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50']"
@@ -226,18 +245,51 @@ const timeAgo = (dateStr) => {
                                 :class="{ 'rotate-180': assetsExpanded }" />
                         </button>
                         <div v-show="!sidebarCollapsed && assetsExpanded" class="ml-7 mt-0.5 space-y-0.5">
-                            <Link v-for="sub in assetsItems" :key="sub.route" :href="sub.route"
+                            <Link
+                                v-for="sub in assetsItems"
+                                :key="sub.route"
+                                :href="sub.route"
                                 :class="['flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
-                                         isActive(sub.route) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50']"
+                                         (sub.exact ? isExact(sub.route) : isActive(sub.route))
+                                             ? 'bg-blue-50 text-blue-700 font-medium'
+                                             : 'text-gray-600 hover:bg-gray-50']"
                             >
                                 <component :is="sub.icon" :size="15" class="flex-shrink-0" />
                                 <span class="flex-1">{{ sub.label }}</span>
-                                <Badge v-if="sub.badge" :value="sub.badge" severity="danger" />
                             </Link>
                         </div>
 
-                        <!-- Settings -->
-                        <button @click="toggleSettings"
+                        <!-- ── Reports ── -->
+                        <button
+                            @click="toggleReports"
+                            :title="sidebarCollapsed ? 'Reports' : undefined"
+                            :class="['w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all mt-0.5',
+                                     isActive('/reports') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50']"
+                        >
+                            <BarChart3 :size="19" class="flex-shrink-0"
+                                :class="isActive('/reports') ? 'text-blue-600' : 'text-gray-400'" />
+                            <span v-if="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Reports</span>
+                            <ChevronDown v-if="!sidebarCollapsed" :size="15" class="text-gray-400 transition-transform"
+                                :class="{ 'rotate-180': reportsExpanded }" />
+                        </button>
+                        <div v-show="!sidebarCollapsed && reportsExpanded" class="ml-7 mt-0.5 space-y-0.5">
+                            <Link
+                                v-for="sub in reportsItems"
+                                :key="sub.route"
+                                :href="sub.route"
+                                :class="['flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
+                                         isActive(sub.route)
+                                             ? 'bg-blue-50 text-blue-700 font-medium'
+                                             : 'text-gray-600 hover:bg-gray-50']"
+                            >
+                                <component :is="sub.icon" :size="15" class="flex-shrink-0" />
+                                <span class="flex-1">{{ sub.label }}</span>
+                            </Link>
+                        </div>
+
+                        <!-- ── Settings ── -->
+                        <button
+                            @click="toggleSettings"
                             :title="sidebarCollapsed ? 'Settings' : undefined"
                             :class="['w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all mt-0.5',
                                      isActive('/settings') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50']"
@@ -249,18 +301,24 @@ const timeAgo = (dateStr) => {
                                 :class="{ 'rotate-180': settingsExpanded }" />
                         </button>
                         <div v-show="!sidebarCollapsed && settingsExpanded" class="ml-7 mt-0.5 space-y-0.5">
-                            <Link v-for="sub in settingsItems" :key="sub.route" :href="sub.route"
+                            <Link
+                                v-for="sub in settingsItems"
+                                :key="sub.route"
+                                :href="sub.route"
                                 :class="['flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all',
-                                         isActive(sub.route) ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50']"
+                                         isActive(sub.route)
+                                             ? 'bg-blue-50 text-blue-700 font-medium'
+                                             : 'text-gray-600 hover:bg-gray-50']"
                             >
                                 <component :is="sub.icon" :size="15" class="flex-shrink-0" />
                                 <span>{{ sub.label }}</span>
                             </Link>
                         </div>
-                    </div>
+
+                    </div><!-- /modules -->
                 </nav>
 
-                <!-- User (bottom) -->
+                <!-- User row (bottom) -->
                 <div class="p-3 border-t border-gray-100">
                     <div v-if="!sidebarCollapsed" class="flex items-center gap-3">
                         <Avatar :label="userInitials" shape="circle" size="normal"
@@ -283,16 +341,22 @@ const timeAgo = (dateStr) => {
             </div>
         </aside>
 
-        <!-- ═══ MAIN AREA ════════════════════════════════════════════════════ -->
+        <!-- ================================================================ -->
+        <!-- MAIN AREA                                                         -->
+        <!-- ================================================================ -->
         <div class="flex-1 flex flex-col min-w-0">
 
             <!-- Top navbar -->
             <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 flex-shrink-0 gap-4">
 
                 <!-- Breadcrumb -->
-                <Breadcrumb :model="breadcrumbItems" class="text-sm p-0 bg-transparent border-none flex-1 min-w-0">
+                <Breadcrumb
+                    :model="breadcrumbItems"
+                    class="text-sm p-0 bg-transparent border-none flex-1 min-w-0"
+                >
                     <template #item="{ item }">
-                        <Link v-if="item.route" :href="item.route" class="text-blue-600 hover:text-blue-700 text-sm">
+                        <Link v-if="item.route" :href="item.route"
+                            class="text-blue-600 hover:text-blue-700 text-sm">
                             {{ item.label }}
                         </Link>
                         <span v-else class="text-gray-500 text-sm">{{ item.label }}</span>
@@ -302,13 +366,16 @@ const timeAgo = (dateStr) => {
                     </template>
                 </Breadcrumb>
 
-                <!-- Right actions -->
+                <!-- Right-side actions -->
                 <div class="flex items-center gap-3 flex-shrink-0">
 
                     <!-- Branch selector -->
-                    <Select v-model="selectedBranch"
+                    <Select
+                        v-model="selectedBranch"
                         :options="branches.length ? branches : [{ name: 'All Branches', id: null }]"
-                        optionLabel="name" placeholder="Select Branch" class="w-44 text-sm"
+                        optionLabel="name"
+                        placeholder="Select Branch"
+                        class="w-44 text-sm"
                     >
                         <template #value="{ value }">
                             <div class="flex items-center gap-2">
@@ -325,17 +392,24 @@ const timeAgo = (dateStr) => {
                     </Select>
 
                     <!-- New PR shortcut -->
-                    <Button label="New PR" icon="pi pi-plus" size="small"
-                        @click="router.visit(route('tenant.requisitions.create'))" />
+                    <Button
+                        label="New PR"
+                        icon="pi pi-plus"
+                        size="small"
+                        @click="router.visit(route('tenant.requisitions.create'))"
+                    />
 
-                    <!-- Notification Bell -->
-                    <button @click="toggleNotifPanel"
+                    <!-- Notification bell -->
+                    <button
+                        @click="toggleNotifPanel"
                         class="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition"
                     >
                         <Bell :size="20" />
-                        <span v-if="unreadCount > 0"
+                        <span
+                            v-if="unreadCount > 0"
                             class="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 text-white
-                                   text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                                   text-[10px] font-bold rounded-full flex items-center justify-center px-1"
+                        >
                             {{ unreadCount > 99 ? '99+' : unreadCount }}
                         </span>
                     </button>
@@ -356,7 +430,9 @@ const timeAgo = (dateStr) => {
                         </div>
 
                         <div v-else class="space-y-1 max-h-80 overflow-y-auto">
-                            <div v-for="n in notifications" :key="n.id"
+                            <div
+                                v-for="n in notifications"
+                                :key="n.id"
                                 @click="openNotification(n)"
                                 :class="['flex gap-3 p-2.5 rounded-lg cursor-pointer transition',
                                          !n.read_at ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50']"
@@ -372,15 +448,19 @@ const timeAgo = (dateStr) => {
                         </div>
 
                         <div class="border-t mt-2 pt-2 text-center">
-                            <Link :href="route('notifications.index')" class="text-xs text-blue-600 hover:underline"
-                                @click="notifPanel.hide()">
+                            <Link
+                                :href="route('notifications.index')"
+                                class="text-xs text-blue-600 hover:underline"
+                                @click="notifPanel.hide()"
+                            >
                                 View all notifications
                             </Link>
                         </div>
                     </OverlayPanel>
 
-                    <!-- Profile dropdown -->
-                    <button @click="toggleProfileMenu"
+                    <!-- Profile dropdown trigger -->
+                    <button
+                        @click="toggleProfileMenu"
                         class="flex items-center gap-2 hover:bg-gray-50 rounded-lg px-2 py-1.5 transition"
                     >
                         <Avatar :label="userInitials" shape="circle" size="normal"
@@ -395,6 +475,12 @@ const timeAgo = (dateStr) => {
 
                 </div>
             </header>
+
+            <!-- Page title bar (shown when title prop is provided) -->
+            <div v-if="title"
+                class="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
+                <h1 class="text-xl font-bold text-gray-900">{{ title }}</h1>
+            </div>
 
             <!-- Page content -->
             <main class="flex-1 overflow-auto">
