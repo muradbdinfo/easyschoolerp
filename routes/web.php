@@ -22,6 +22,7 @@ use App\Http\Controllers\Tenant\AssetController;
 use App\Http\Controllers\Tenant\AssetTransferController;
 use App\Http\Controllers\Tenant\AssetMaintenanceController;
 use App\Http\Controllers\Tenant\AssetDepreciationController;
+use App\Http\Controllers\Tenant\AssetVerificationController;
 use App\Http\Controllers\Tenant\ReportController;
 
 // Auth routes
@@ -145,7 +146,21 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/categories/{assetCategory}',    [AssetCategoryController::class, 'update'])->name('categories.update');
         Route::delete('/categories/{assetCategory}', [AssetCategoryController::class, 'destroy'])->name('categories.destroy');
 
-        // ── Transfers ─────────────────────────────────────────────────────
+
+
+
+        // ── Asset wildcard routes LAST (so they never swallow the above) ──
+        Route::get('/{asset}',      [AssetController::class, 'show'])->name('show');
+        Route::get('/{asset}/edit', [AssetController::class, 'edit'])->name('edit');
+        Route::put('/{asset}',      [AssetController::class, 'update'])->name('update');
+        Route::delete('/{asset}',   [AssetController::class, 'destroy'])->name('destroy');
+        Route::get('register/{asset}/qr', [AssetController::class, 'generateQR'])->name('register.qr');
+
+        // Photos (also after static routes to be safe)
+        Route::post('/{asset}/photos',   [AssetController::class, 'uploadPhoto'])->name('photos.upload');
+        Route::delete('/{asset}/photos', [AssetController::class, 'deletePhoto'])->name('photos.delete');
+
+                // ── Transfers ─────────────────────────────────────────────────────
         Route::get('/transfers',                          [AssetTransferController::class, 'index'])->name('transfers.index');
         Route::get('/transfers/create',                   [AssetTransferController::class, 'create'])->name('transfers.create');
         Route::post('/transfers',                         [AssetTransferController::class, 'store'])->name('transfers.store');
@@ -153,31 +168,36 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/transfers/{assetTransfer}/approve', [AssetTransferController::class, 'approve'])->name('transfers.approve');
         Route::post('/transfers/{assetTransfer}/reject',  [AssetTransferController::class, 'reject'])->name('transfers.reject');
 
+
+
         // ── Maintenance ───────────────────────────────────────────────────
-        Route::get('/maintenance',                              [AssetMaintenanceController::class, 'index'])->name('maintenance.index');
-        Route::get('/maintenance/create',                       [AssetMaintenanceController::class, 'create'])->name('maintenance.create');
-        Route::post('/maintenance',                             [AssetMaintenanceController::class, 'store'])->name('maintenance.store');
-        Route::get('/maintenance/{assetMaintenance}',           [AssetMaintenanceController::class, 'show'])->name('maintenance.show');
-        Route::get('/maintenance/{assetMaintenance}/edit',      [AssetMaintenanceController::class, 'edit'])->name('maintenance.edit');
-        Route::put('/maintenance/{assetMaintenance}',           [AssetMaintenanceController::class, 'update'])->name('maintenance.update');
-        Route::delete('/maintenance/{assetMaintenance}',        [AssetMaintenanceController::class, 'destroy'])->name('maintenance.destroy');
-        Route::post('/maintenance/{assetMaintenance}/complete', [AssetMaintenanceController::class, 'complete'])->name('maintenance.complete');
+    Route::get('/maintenance',                              [AssetMaintenanceController::class, 'index'])->name('maintenance.index');
+    Route::get('/maintenance/create',                       [AssetMaintenanceController::class, 'create'])->name('maintenance.create');
+    Route::post('/maintenance',                             [AssetMaintenanceController::class, 'store'])->name('maintenance.store');
+    Route::get('/maintenance/{assetMaintenance}',           [AssetMaintenanceController::class, 'show'])->name('maintenance.show');
+    Route::get('/maintenance/{assetMaintenance}/edit',      [AssetMaintenanceController::class, 'edit'])->name('maintenance.edit');
+    Route::put('/maintenance/{assetMaintenance}',           [AssetMaintenanceController::class, 'update'])->name('maintenance.update');
+    Route::delete('/maintenance/{assetMaintenance}',        [AssetMaintenanceController::class, 'destroy'])->name('maintenance.destroy');
+    Route::post('/maintenance/{assetMaintenance}/complete', [AssetMaintenanceController::class, 'complete'])->name('maintenance.complete');
 
-        // ── Depreciation ──────────────────────────────────────────────────
-        Route::get('/depreciation',                  [AssetDepreciationController::class, 'index'])->name('depreciation.index');
-        Route::get('/depreciation/run',              [AssetDepreciationController::class, 'run'])->name('depreciation.run');
-        Route::post('/depreciation/process',         [AssetDepreciationController::class, 'process'])->name('depreciation.process');
-        Route::get('/depreciation/{asset}/schedule', [AssetDepreciationController::class, 'schedule'])->name('depreciation.schedule');
 
-        // ── Asset wildcard routes LAST (so they never swallow the above) ──
-        Route::get('/{asset}',      [AssetController::class, 'show'])->name('show');
-        Route::get('/{asset}/edit', [AssetController::class, 'edit'])->name('edit');
-        Route::put('/{asset}',      [AssetController::class, 'update'])->name('update');
-        Route::delete('/{asset}',   [AssetController::class, 'destroy'])->name('destroy');
 
-        // Photos (also after static routes to be safe)
-        Route::post('/{asset}/photos',   [AssetController::class, 'uploadPhoto'])->name('photos.upload');
-        Route::delete('/{asset}/photos', [AssetController::class, 'deletePhoto'])->name('photos.delete');
+
+            // Depreciation
+    Route::get('depreciation',             [AssetDepreciationController::class, 'index'])->name('depreciation.index');
+    Route::get('depreciation/run',         [AssetDepreciationController::class, 'run'])->name('depreciation.run');
+    Route::post('depreciation/process',    [AssetDepreciationController::class, 'process'])->name('depreciation.process');
+    Route::get('depreciation/{asset}/schedule', [AssetDepreciationController::class, 'schedule'])->name('depreciation.schedule');
+
+          // Physical Verification
+    Route::get('verification',             [AssetVerificationController::class, 'index'])->name('verification.index');
+    Route::get('verification/create',      [AssetVerificationController::class, 'create'])->name('verification.create');
+    Route::post('verification',            [AssetVerificationController::class, 'store'])->name('verification.store');
+    Route::get('verification/{cycle}',     [AssetVerificationController::class, 'show'])->name('verification.show');
+    Route::post('verification/{cycle}/complete', [AssetVerificationController::class, 'complete'])->name('verification.complete');
+    Route::post('verification/{cycle}/items/{item}/verify', [AssetVerificationController::class, 'verify'])->name('verification.verify');
+    Route::post('verification/items/{item}/resolve', [AssetVerificationController::class, 'resolveDiscrepancy'])->name('verification.resolve');
+
 
     });
 
@@ -187,4 +207,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('assets',      [ReportController::class, 'assets'])->name('assets');
     });
 
+});
+
+
+Route::prefix('reports')->name('tenant.reports.')->group(function () {
+    Route::get('procurement',    [ReportController::class, 'procurement'])->name('procurement');
+    Route::get('assets',         [ReportController::class, 'assets'])->name('assets');
+    Route::get('dashboard-stats',[ReportController::class, 'dashboardStats'])->name('dashboard-stats');
 });

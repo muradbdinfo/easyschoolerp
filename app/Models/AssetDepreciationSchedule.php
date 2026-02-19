@@ -14,12 +14,19 @@ class AssetDepreciationSchedule extends Model
     ];
 
     protected $casts = [
-        'opening_value'        => 'decimal:2',
-        'depreciation_amount'  => 'decimal:2',
-        'closing_value'        => 'decimal:2',
-        'processed_date'       => 'date',
+        'opening_value'       => 'decimal:2',
+        'depreciation_amount' => 'decimal:2',
+        'closing_value'       => 'decimal:2',
+        'processed_date'      => 'date',
     ];
 
-    public function asset(): BelongsTo       { return $this->belongsTo(Asset::class); }
-    public function processedBy(): BelongsTo { return $this->belongsTo(User::class, 'processed_by'); }
+    public function asset(): BelongsTo
+    {
+        return $this->belongsTo(Asset::class, 'asset_id');
+    }
+
+    public function processedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'processed_by');
+    }
 }
