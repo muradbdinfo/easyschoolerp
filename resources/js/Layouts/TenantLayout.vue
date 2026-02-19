@@ -3,17 +3,41 @@ import { ref, computed } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import Toast        from 'primevue/toast';
 import Avatar       from 'primevue/avatar';
+import Badge        from 'primevue/badge';
 import Breadcrumb   from 'primevue/breadcrumb';
 import Select       from 'primevue/select';
 import Button       from 'primevue/button';
 import Menu         from 'primevue/menu';
 import OverlayPanel from 'primevue/overlaypanel';
 import {
-    Menu as MenuIcon, X, Home, ShoppingCart, Box, BarChart3,
-    Settings, HelpCircle, Users, Tag, FileText, Package, Truck,
-    Boxes, Folder, MoveRight, Wrench, TrendingDown,
-    LogOut, Building, Building2, GitBranch, ChevronDown, Bell,
-    ClipboardList, Layers,
+    Menu as MenuIcon,
+    X,
+    Home,
+    ShoppingCart,
+    Box,
+    BarChart3,
+    Settings,
+    HelpCircle,
+    Users,
+    Tag,
+    FileText,
+    Package,
+    Truck,
+    Boxes,
+    Folder,
+    MoveRight,
+    Wrench,
+    TrendingDown,
+    CheckSquare,
+    LogOut,
+    Building,
+    Building2,
+    GitBranch,
+    ChevronDown,
+    Bell,
+    ClipboardList,
+    Layers,
+    GraduationCap,
 } from 'lucide-vue-next';
 
 // ------------------------------------------------------------------ Props ---
@@ -22,7 +46,7 @@ const props = defineProps({
     title:           { type: String, default: ''       },
 });
 
-// --------------------------------------------------------------- Auth / page ---
+// ---------------------------------------------------------------- Auth / page ---
 const page = usePage();
 
 const userName     = computed(() => page.props.auth?.user?.name ?? 'User');
@@ -67,8 +91,10 @@ if (currentUrl.startsWith('/reports'))     reportsExpanded.value     = true;
 if (currentUrl.startsWith('/settings'))    settingsExpanded.value    = true;
 
 // Active helpers
-const isActive = (path)  => page.url.startsWith(path);
-const isExact  = (path)  => page.url === path || page.url === path + '/';
+// isActive  → matches /path and anything under /path/*
+// isExact   → matches only exactly /path or /path/
+const isActive = (path) => page.url.startsWith(path);
+const isExact  = (path) => page.url === path || page.url === path + '/';
 
 // ------------------------------------------------------- Branch selector ---
 const selectedBranch = ref(null);
@@ -102,9 +128,10 @@ const profileMenuItems  = [
 ];
 
 // ---------------------------------------------------------- Nav items ---
+// Dashboard and Help are top-level flat links (no sub-menu)
 const topMenuItems = [
-    { label: 'Dashboard', icon: Home,       route: '/dashboard' },
-    { label: 'Help',      icon: HelpCircle, route: '/help'      },
+    { label: 'Dashboard', icon: Home,        route: '/dashboard' },
+    { label: 'Help',      icon: HelpCircle,  route: '/help'      },
 ];
 
 const procurementItems = [
@@ -116,13 +143,14 @@ const procurementItems = [
     { label: 'Goods Receipt',   icon: Truck,    route: '/procurement/grn'             },
 ];
 
-// exact: true on Register prevents /assets from matching all /assets/* pages
+// NOTE: Register uses exact:true so /assets does NOT highlight every sub-page
 const assetsItems = [
     { label: 'Register',     icon: Boxes,        route: '/assets',             exact: true },
     { label: 'Categories',   icon: Folder,       route: '/assets/categories'              },
     { label: 'Transfers',    icon: MoveRight,    route: '/assets/transfers'               },
     { label: 'Maintenance',  icon: Wrench,       route: '/assets/maintenance'             },
     { label: 'Depreciation', icon: TrendingDown, route: '/assets/depreciation'            },
+    { label: 'Verification', icon: CheckSquare,  route: '/assets/verification'            },
 ];
 
 const reportsItems = [
@@ -131,8 +159,10 @@ const reportsItems = [
 ];
 
 const settingsItems = [
-    { label: 'Departments', icon: Building2, route: '/settings/departments' },
-    { label: 'Branches',    icon: GitBranch, route: '/settings/branches'    },
+    { label: 'School',      icon: GraduationCap, route: '/settings/school'      },
+    { label: 'Users',       icon: Users,         route: '/settings/users'       },
+    { label: 'Departments', icon: Building2,     route: '/settings/departments' },
+    { label: 'Branches',    icon: GitBranch,     route: '/settings/branches'    },
 ];
 
 // ----------------------------------------------------------- Time ago ---
@@ -180,7 +210,7 @@ const timeAgo = (dateStr) => {
                 <!-- Navigation -->
                 <nav class="flex-1 p-3 overflow-y-auto space-y-0.5">
 
-                    <!-- Top-level links (Dashboard, Help) -->
+                    <!-- Top-level flat links: Dashboard, Help -->
                     <Link
                         v-for="item in topMenuItems"
                         :key="item.route"
@@ -196,7 +226,7 @@ const timeAgo = (dateStr) => {
                         <span v-if="!sidebarCollapsed">{{ item.label }}</span>
                     </Link>
 
-                    <!-- ─ MODULES section ─ -->
+                    <!-- ─ MODULES section label ─ -->
                     <div class="pt-3">
                         <p v-if="!sidebarCollapsed"
                             class="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">
@@ -216,6 +246,7 @@ const timeAgo = (dateStr) => {
                             <ChevronDown v-if="!sidebarCollapsed" :size="15" class="text-gray-400 transition-transform"
                                 :class="{ 'rotate-180': procurementExpanded }" />
                         </button>
+
                         <div v-show="!sidebarCollapsed && procurementExpanded" class="ml-7 mt-0.5 space-y-0.5">
                             <Link
                                 v-for="sub in procurementItems"
@@ -244,6 +275,7 @@ const timeAgo = (dateStr) => {
                             <ChevronDown v-if="!sidebarCollapsed" :size="15" class="text-gray-400 transition-transform"
                                 :class="{ 'rotate-180': assetsExpanded }" />
                         </button>
+
                         <div v-show="!sidebarCollapsed && assetsExpanded" class="ml-7 mt-0.5 space-y-0.5">
                             <Link
                                 v-for="sub in assetsItems"
@@ -272,6 +304,7 @@ const timeAgo = (dateStr) => {
                             <ChevronDown v-if="!sidebarCollapsed" :size="15" class="text-gray-400 transition-transform"
                                 :class="{ 'rotate-180': reportsExpanded }" />
                         </button>
+
                         <div v-show="!sidebarCollapsed && reportsExpanded" class="ml-7 mt-0.5 space-y-0.5">
                             <Link
                                 v-for="sub in reportsItems"
@@ -300,6 +333,7 @@ const timeAgo = (dateStr) => {
                             <ChevronDown v-if="!sidebarCollapsed" :size="15" class="text-gray-400 transition-transform"
                                 :class="{ 'rotate-180': settingsExpanded }" />
                         </button>
+
                         <div v-show="!sidebarCollapsed && settingsExpanded" class="ml-7 mt-0.5 space-y-0.5">
                             <Link
                                 v-for="sub in settingsItems"
@@ -399,10 +433,11 @@ const timeAgo = (dateStr) => {
                         @click="router.visit(route('tenant.requisitions.create'))"
                     />
 
-                    <!-- Notification bell -->
+                    <!-- ─ Notification bell ─ -->
                     <button
                         @click="toggleNotifPanel"
                         class="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition"
+                        title="Notifications"
                     >
                         <Bell :size="20" />
                         <span
@@ -414,7 +449,7 @@ const timeAgo = (dateStr) => {
                         </span>
                     </button>
 
-                    <!-- Notification panel -->
+                    <!-- Notification overlay panel -->
                     <OverlayPanel ref="notifPanel" class="w-80 shadow-xl">
                         <div class="flex items-center justify-between mb-3">
                             <h3 class="font-semibold text-gray-900">Notifications</h3>
@@ -424,11 +459,13 @@ const timeAgo = (dateStr) => {
                             </button>
                         </div>
 
+                        <!-- Empty state -->
                         <div v-if="notifications.length === 0" class="text-center py-8 text-gray-400">
                             <Bell :size="32" class="mx-auto mb-2 opacity-30" />
                             <p class="text-sm">No notifications</p>
                         </div>
 
+                        <!-- Notification list -->
                         <div v-else class="space-y-1 max-h-80 overflow-y-auto">
                             <div
                                 v-for="n in notifications"
@@ -437,6 +474,7 @@ const timeAgo = (dateStr) => {
                                 :class="['flex gap-3 p-2.5 rounded-lg cursor-pointer transition',
                                          !n.read_at ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50']"
                             >
+                                <!-- Unread dot -->
                                 <div class="w-2 h-2 rounded-full mt-2 flex-shrink-0"
                                     :class="!n.read_at ? 'bg-blue-500' : 'bg-transparent'" />
                                 <div class="flex-1 min-w-0">
@@ -476,13 +514,13 @@ const timeAgo = (dateStr) => {
                 </div>
             </header>
 
-            <!-- Page title bar (shown when title prop is provided) -->
+            <!-- Optional page title bar (shown when title prop is provided) -->
             <div v-if="title"
                 class="bg-white border-b border-gray-100 px-6 py-4 flex-shrink-0">
                 <h1 class="text-xl font-bold text-gray-900">{{ title }}</h1>
             </div>
 
-            <!-- Page content -->
+            <!-- Page content — no padding here; each page controls its own -->
             <main class="flex-1 overflow-auto">
                 <slot />
             </main>

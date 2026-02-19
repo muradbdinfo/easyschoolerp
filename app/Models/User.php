@@ -13,13 +13,15 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'tenant_id',
-        'name',
+       'name',
         'email',
+        'phone',
         'password',
+        'tenant_id',
         'role',
-        'department_id',
         'branch_id',
+        'department_id',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -37,6 +39,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'is_active'         => 'boolean',
         ];
     }
 
@@ -176,4 +179,12 @@ class User extends Authenticatable
     {
         return $query->where('department_id', $departmentId);
     }
+
+
+
+    public function scopeForTenant($query, int $tenantId)
+    {
+        return $query->where('tenant_id', $tenantId);
+    }
+
 }
