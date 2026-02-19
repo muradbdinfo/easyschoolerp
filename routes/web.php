@@ -6,6 +6,7 @@ use Inertia\Inertia;
 // Controllers - Admin
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\TenantController;
+use App\Http\Controllers\Tenant\TenantDashboardController;
 
 // Controllers - Tenant (Notifications)
 use App\Http\Controllers\NotificationController;
@@ -70,8 +71,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
 */
 Route::middleware(['auth'])->group(function () {
 
-    Route::get('/dashboard', fn () => Inertia::render('Tenant/Dashboard'))->name('dashboard');
 
+Route::get('/dashboard', [TenantDashboardController::class, 'index'])->name('dashboard');
     // -- Notifications -------------------------------------------------------
     Route::prefix('notifications')->name('notifications.')->group(function () {
         Route::get('/',                     [NotificationController::class, 'index'])->name('index');
@@ -123,25 +124,20 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/{requisition}/reject',                [PurchaseRequisitionController::class, 'reject'])->name('reject');
         });
 
-        // Purchase Orders
-        // Route names: tenant.purchase-orders.index / create / store / show / edit / update / destroy
-        Route::resource('purchase-orders', PurchaseOrderController::class);
+    Route::resource('purchase-orders', PurchaseOrderController::class);
         Route::post('purchase-orders/{purchaseOrder}/send',   [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
         Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
         Route::get('purchase-orders-approved-prs',            [PurchaseOrderController::class, 'approvedPRs'])->name('purchase-orders.approved-prs');
 
         // Goods Receipt Notes
-        // Route names: tenant.grn.index / create / store / show
+       
         Route::resource('grn', GoodsReceiptNoteController::class)
             ->only(['index', 'create', 'store', 'show']);
 
     });
 
     // -- Assets --------------------------------------------------------------
-    // CRITICAL ORDER: all static sub-resource prefixes (categories, transfers,
-    // maintenance, depreciation, verification) MUST be declared BEFORE the
-    // /{asset} wildcard routes to prevent Laravel treating e.g. "transfers"
-    // as an asset ID.
+
     Route::prefix('assets')->name('tenant.assets.')->group(function () {
 
         // ── Asset Register (index / create / store) ────────────────────────
@@ -213,8 +209,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // -- Settings ------------------------------------------------------------
-    // Route names: tenant.settings.departments.* / tenant.settings.branches.*
-    // tenant.settings.users.* / tenant.settings.school.*
+
     Route::prefix('settings')->name('tenant.settings.')->group(function () {
 
         // Departments & Branches
