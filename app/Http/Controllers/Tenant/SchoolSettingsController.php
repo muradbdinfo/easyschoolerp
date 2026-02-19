@@ -16,7 +16,7 @@ class SchoolSettingsController extends Controller
     {
         $tenant = Tenant::findOrFail(auth()->user()->tenant_id);
 
-        return Inertia::render('Tenant/Settings/School/Index', [
+        return Inertia::render('Tenant/Settings/School/Index1', [
             'tenant'     => $tenant,
             'allModules' => self::availableModules(),
             'logoUrl'    => $tenant->logo
