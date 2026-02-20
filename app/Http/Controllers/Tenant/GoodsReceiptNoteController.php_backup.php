@@ -62,7 +62,7 @@ class GoodsReceiptNoteController extends Controller
         // Load sent POs with unreceived items
         $poQuery = PurchaseOrder::with(['vendor:id,name', 'branch:id,name', 'items.item:id,name,unit,is_asset,asset_threshold_amount'])
             ->whereIn('status', ['sent', 'acknowledged', 'partial'])
-            ->select('id', 'po_number', 'vendor_id', 'branch_id', 'subtotal', 'vat_percentage', 'vat_amount', 'freight_charges', 'discount_amount', 'total_amount');
+            ->select('id', 'po_number', 'vendor_id', 'branch_id', 'total_amount');
 
         if ($request->filled('po_id')) {
             $poQuery->where('id', $request->po_id);
@@ -185,7 +185,7 @@ class GoodsReceiptNoteController extends Controller
     public function show(GoodsReceiptNote $grn): Response
     {
         $grn->load([
-            'purchaseOrder:id,po_number,subtotal,vat_percentage,vat_amount,freight_charges,discount_amount,total_amount',
+            'purchaseOrder:id,po_number,total_amount',
             'vendor:id,name,code,phone,email',
             'branch:id,name',
             'receiver:id,name',
@@ -199,7 +199,7 @@ class GoodsReceiptNoteController extends Controller
         ]);
     }
 
-    // â”€â”€ Private Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Private Helpers ──────────────────────────────────────────────────────
 
     private function updatePOStatus(int $poId): void
     {

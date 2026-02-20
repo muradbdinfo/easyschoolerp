@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { useToast } from 'primevue/usetoast';
@@ -32,24 +32,24 @@ import {
     Upload,
 } from 'lucide-vue-next';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Props
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const props = defineProps({
     departments: { type: Array, default: () => [] },
     branches:    { type: Array, default: () => [] },
     errors:      { type: Object, default: () => ({}) },
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Composables
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const toast   = useToast();
 const confirm = useConfirm();
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Steps config
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const activeStep = ref(0);
 const steps = [
     { label: 'Basic Information' },
@@ -58,9 +58,9 @@ const steps = [
     { label: 'Review & Submit'   },
 ];
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Main form state
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const form = reactive({
     department_id:    null,
     branch_id:        null,
@@ -81,9 +81,9 @@ const priorityOptions = [
     { label: 'Urgent', value: 'urgent' },
 ];
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Item search state
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const itemSearchResults = ref([]);
 const selectedItem      = ref(null);
 const itemQuantity      = ref(1);
@@ -91,25 +91,18 @@ const itemPrice         = ref(0);
 const itemSpecs         = ref('');
 const isSearching       = ref(false);
 
-// Auto-fill price when item selected
-watch(selectedItem, (item) => {
-    if (item && typeof item === 'object' && item.unit_price !== undefined) {
-        itemPrice.value = Number(item.unit_price) || 0;
-    }
-});
-
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Submit / auto-save state
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const autoSaveInterval  = ref(null);
 const lastSavedAt       = ref(null);
 const draftPRId         = ref(null);   // tracks the autosave draft record id
 const isSubmitting      = ref(false);  // guards manual save / submit buttons
 const isAutoSaving      = ref(false);  // guards the autosave interval so it never overlaps
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Computed
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const totalAmount = computed(() =>
     form.items.reduce((sum, item) => sum + (item.quantity * item.estimated_unit_price), 0)
 );
@@ -126,9 +119,9 @@ const hasUnsavedChanges = computed(() =>
     !!form.department_id || !!form.branch_id || form.items.length > 0
 );
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Item helpers
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const searchItems = async (event) => {
     if (!event.query || event.query.length < 2) {
         itemSearchResults.value = [];
@@ -203,9 +196,9 @@ const updateItemTotal = (item) => {
     item.estimated_total = (item.quantity || 0) * (item.estimated_unit_price || 0);
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // File upload
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const onFileSelect = (event) => {
     form.attachments = event.files || [];
 };
@@ -215,9 +208,9 @@ const onFileRemove = (event) => {
     if (idx > -1) form.attachments.splice(idx, 1);
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Navigation
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const nextStep = () => {
     const validations = [isStep1Valid, isStep2Valid, isStep3Valid];
     const messages    = [
@@ -236,9 +229,9 @@ const prevStep = () => { if (activeStep.value > 0) activeStep.value--; };
 
 const goToStep = (index) => { if (index <= activeStep.value) activeStep.value = index; };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Build FormData helper
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const buildFormData = (status) => {
     const fd = new FormData();
     fd.append('status',        status);
@@ -257,7 +250,7 @@ const buildFormData = (status) => {
     fd.append('notes',            form.notes || '');
     fd.append('items',            JSON.stringify(form.items));
 
-    // â”€â”€ FIX: pass the autosave draft id so the controller can UPDATE
+    // ── FIX: pass the autosave draft id so the controller can UPDATE
     //         the existing record instead of INSERT a new one.
     if (draftPRId.value) {
         fd.append('draft_pr_id', draftPRId.value);
@@ -272,14 +265,14 @@ const buildFormData = (status) => {
     return fd;
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Save as draft  (FIX: guard against double-click)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const saveDraft = () => {
-    // â”€â”€ FIX: bail out immediately if already submitting
+    // ── FIX: bail out immediately if already submitting
     if (isSubmitting.value) return;
 
-    // â”€â”€ FIX: stop autosave so it cannot race with the manual save
+    // ── FIX: stop autosave so it cannot race with the manual save
     stopAutoSave();
 
     isSubmitting.value = true;
@@ -304,11 +297,11 @@ const saveDraft = () => {
     });
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Submit for approval  (FIX: set flag BEFORE confirm dialog opens)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const submitForApproval = () => {
-    // â”€â”€ FIX: bail out immediately if already submitting
+    // ── FIX: bail out immediately if already submitting
     if (isSubmitting.value) return;
 
     if (!isStep1Valid.value) {
@@ -332,7 +325,7 @@ const submitForApproval = () => {
         header:  'Confirm Submission',
         icon:    'pi pi-exclamation-triangle',
         accept: () => {
-            // â”€â”€ FIX: set the flag immediately inside accept so a second
+            // ── FIX: set the flag immediately inside accept so a second
             //         tap on "Yes" in the dialog cannot fire a second request
             if (isSubmitting.value) return;
             isSubmitting.value = true;
@@ -356,21 +349,21 @@ const submitForApproval = () => {
                 },
             });
         },
-        // â”€â”€ FIX: make sure isSubmitting is reset if the user cancels
+        // ── FIX: make sure isSubmitting is reset if the user cancels
         reject: () => {
             isSubmitting.value = false;
         },
     });
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Auto-save (every 30 s)
 // FIX: skip the tick if a manual save is in-flight, and use draftPRId
 //      so we always UPDATE the same record instead of creating a new one.
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const startAutoSave = () => {
     autoSaveInterval.value = setInterval(async () => {
-        // â”€â”€ FIX: don't autosave while a manual submission is running
+        // ── FIX: don't autosave while a manual submission is running
         if (isSubmitting.value || isAutoSaving.value) return;
         if (!form.department_id || !form.branch_id) return;
 
@@ -407,9 +400,9 @@ const stopAutoSave = () => {
     }
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Unsaved-changes browser warning
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 const handleBeforeUnload = (e) => {
     if (hasUnsavedChanges.value) {
         e.preventDefault();
@@ -417,9 +410,9 @@ const handleBeforeUnload = (e) => {
     }
 };
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 // Lifecycle
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────
 onMounted(() => {
     startAutoSave();
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -454,7 +447,7 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- STEP 1 â€” Basic Information -->
+            <!-- STEP 1 — Basic Information -->
             <Card v-if="activeStep === 0" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
@@ -516,7 +509,7 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- STEP 2 â€” Add Items -->
+            <!-- STEP 2 — Add Items -->
             <Card v-if="activeStep === 1" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
@@ -536,7 +529,7 @@ onBeforeUnmount(() => {
                                     v-model="selectedItem"
                                     :suggestions="itemSearchResults"
                                     optionLabel="name"
-                                    placeholder="Type item name or codeâ€¦"
+                                    placeholder="Type item name or code…"
                                     :forceSelection="false"
                                     :dropdown="true"
                                     class="w-full"
@@ -593,7 +586,7 @@ onBeforeUnmount(() => {
                         <template #empty>
                             <div class="text-center py-10 text-gray-400">
                                 <Package :size="48" class="mx-auto mb-3 opacity-40" />
-                                <p>No items yet â€” search and add items above.</p>
+                                <p>No items yet — search and add items above.</p>
                             </div>
                         </template>
 
@@ -637,7 +630,7 @@ onBeforeUnmount(() => {
                 </template>
             </Card>
 
-            <!-- STEP 3 â€” Justification -->
+            <!-- STEP 3 — Justification -->
             <Card v-if="activeStep === 2" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
@@ -652,16 +645,16 @@ onBeforeUnmount(() => {
                             Purpose <span class="text-red-500">*</span>
                             <span class="font-normal text-gray-500 ml-1">(Why are these items needed? Minimum 20 characters)</span>
                         </label>
-                        <Textarea v-model="form.purpose" :rows="5" placeholder="Explain the purpose and necessity of these itemsâ€¦" class="w-full" autoResize />
+                        <Textarea v-model="form.purpose" :rows="5" placeholder="Explain the purpose and necessity of these items…" class="w-full" autoResize />
                         <small :class="purposeCharCount < 20 ? 'text-red-500' : 'text-green-600'">
                             {{ purposeCharCount }} / 1000 characters
-                            <span v-if="purposeCharCount < 20"> â€” need {{ 20 - purposeCharCount }} more</span>
+                            <span v-if="purposeCharCount < 20"> — need {{ 20 - purposeCharCount }} more</span>
                         </small>
                     </div>
 
                     <div class="mb-6">
                         <label class="font-semibold text-sm block mb-1">Additional Details <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <Textarea v-model="form.justification" :rows="4" placeholder="Any additional informationâ€¦" class="w-full" autoResize />
+                        <Textarea v-model="form.justification" :rows="4" placeholder="Any additional information…" class="w-full" autoResize />
                     </div>
 
                     <div class="mb-6">
@@ -687,13 +680,13 @@ onBeforeUnmount(() => {
 
                     <div>
                         <label class="font-semibold text-sm block mb-1">Internal Notes <span class="text-gray-400 font-normal">(optional)</span></label>
-                        <Textarea v-model="form.notes" :rows="3" placeholder="Any internal notesâ€¦" class="w-full" autoResize />
+                        <Textarea v-model="form.notes" :rows="3" placeholder="Any internal notes…" class="w-full" autoResize />
                     </div>
 
                 </template>
             </Card>
 
-            <!-- STEP 4 â€” Review & Submit -->
+            <!-- STEP 4 — Review & Submit -->
             <Card v-if="activeStep === 3" class="mb-6">
                 <template #title>
                     <div class="flex items-center gap-2">
@@ -711,15 +704,15 @@ onBeforeUnmount(() => {
                         <div class="grid grid-cols-2 gap-3 text-sm bg-gray-50 p-3 rounded">
                             <div>
                                 <span class="text-gray-500">Department:</span>
-                                <span class="ml-2 font-semibold">{{ props.departments.find(d => d.id === form.department_id)?.name || 'â€”' }}</span>
+                                <span class="ml-2 font-semibold">{{ props.departments.find(d => d.id === form.department_id)?.name || '—' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Branch:</span>
-                                <span class="ml-2 font-semibold">{{ props.branches.find(b => b.id === form.branch_id)?.name || 'â€”' }}</span>
+                                <span class="ml-2 font-semibold">{{ props.branches.find(b => b.id === form.branch_id)?.name || '—' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Required By:</span>
-                                <span class="ml-2 font-semibold">{{ form.required_by_date || 'â€”' }}</span>
+                                <span class="ml-2 font-semibold">{{ form.required_by_date || '—' }}</span>
                             </div>
                             <div>
                                 <span class="text-gray-500">Priority:</span>
