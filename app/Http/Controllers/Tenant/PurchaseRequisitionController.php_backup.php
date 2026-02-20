@@ -209,7 +209,7 @@ class PurchaseRequisitionController extends Controller
 
             DB::commit();
 
-            // âœ… FIXED route name
+            // ✅ FIXED route name
             return redirect()
                 ->route('tenant.requisitions.show', $pr->id)
                 ->with('success', $validated['status'] === 'submitted'
@@ -315,7 +315,7 @@ class PurchaseRequisitionController extends Controller
 
             DB::commit();
 
-            // âœ… FIXED route name
+            // ✅ FIXED route name
             return redirect()
                 ->route('tenant.requisitions.show', $requisition->id)
                 ->with('success', 'Purchase requisition updated successfully');
@@ -339,7 +339,7 @@ class PurchaseRequisitionController extends Controller
         $requisition->items()->delete();
         $requisition->delete();
 
-        // âœ… FIXED route name
+        // ✅ FIXED route name
         return redirect()
             ->route('tenant.requisitions.index')
             ->with('success', 'Requisition deleted successfully');
@@ -435,9 +435,9 @@ class PurchaseRequisitionController extends Controller
         }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // âœ… NEW: Approve a requisition
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────────────────────────────────────────────────
+    // ✅ NEW: Approve a requisition
+    // ─────────────────────────────────────────────────────────────────────
     public function approve(Request $request, PurchaseRequisition $requisition)
     {
         $request->validate([
@@ -466,9 +466,9 @@ class PurchaseRequisitionController extends Controller
         }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // âœ… NEW: Reject a requisition
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─────────────────────────────────────────────────────────────────────
+    // ✅ NEW: Reject a requisition
+    // ─────────────────────────────────────────────────────────────────────
     public function reject(Request $request, PurchaseRequisition $requisition)
     {
         $request->validate([
@@ -495,44 +495,5 @@ class PurchaseRequisitionController extends Controller
             \Log::error('PR Reject Error: ' . $e->getMessage());
             return back()->with('error', 'Failed to reject: ' . $e->getMessage());
         }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // JSON: Get PR details + items for PO Create dropdown auto-fill
-    // GET /procurement/requisitions/{requisition}/items-json
-    // ─────────────────────────────────────────────────────────────────────
-    public function itemsJson(PurchaseRequisition $requisition): \Illuminate\Http\JsonResponse
-    {
-        // Only approved PRs without a PO can be fetched
-        abort_if(
-            $requisition->status !== 'approved' || $requisition->purchase_order_id !== null,
-            403,
-            'This requisition is not available for PO creation.'
-        );
-
-        $requisition->load([
-            'items.item:id,name,code,unit,current_price',
-            'branch:id,name',
-            'department:id,name',
-        ]);
-
-        return response()->json([
-            'id'            => $requisition->id,
-            'pr_number'     => $requisition->pr_number,
-            'purpose'       => $requisition->purpose,
-            'total_amount'  => $requisition->total_amount,
-            'branch'        => $requisition->branch,
-            'department'    => $requisition->department,
-            'items'         => $requisition->items->map(fn ($i) => [
-                'id'                   => $i->id,
-                'item_id'              => $i->item_id,
-                'item_name'            => $i->item_name,
-                'item_code'            => $i->item_code,
-                'unit'                 => $i->unit,
-                'quantity'             => (float) $i->quantity,
-                'estimated_unit_price' => (float) $i->estimated_unit_price,
-                'specifications'       => $i->specifications,
-            ]),
-        ]);
     }
 }

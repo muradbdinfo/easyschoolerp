@@ -106,31 +106,31 @@ const timeline = computed(() => {
         icon:     'pi pi-file',
     });
 
-    if (r.level1_approved_at || r.status === 'pending_level_1') {
+    if (r.level_1_approved_at || r.status === 'pending_level_1') {
         evt.push({
             label:  'Dept Head Review',
-            date:   r.level1_approved_at ? formatDate(r.level1_approved_at) : 'Pending',
+            date:   r.level_1_approved_at ? formatDate(r.level_1_approved_at) : 'Pending',
             by:     r.level1Approver?.name ?? '—',
-            status: r.level1_approved_at ? 'done' : (r.status === 'pending_level_1' ? 'active' : 'pending'),
-            icon:   r.level1_approved_at ? 'pi pi-check' : 'pi pi-clock',
+            status: r.level_1_approved_at ? 'done' : (r.status === 'pending_level_1' ? 'active' : 'pending'),
+            icon:   r.level_1_approved_at ? 'pi pi-check' : 'pi pi-clock',
         });
     }
-    if (r.level2_approved_at || r.status === 'pending_level_2') {
+    if (r.level_2_approved_at || r.status === 'pending_level_2') {
         evt.push({
             label:  'VP Review',
-            date:   r.level2_approved_at ? formatDate(r.level2_approved_at) : 'Pending',
+            date:   r.level_2_approved_at ? formatDate(r.level_2_approved_at) : 'Pending',
             by:     r.level2Approver?.name ?? '—',
-            status: r.level2_approved_at ? 'done' : (r.status === 'pending_level_2' ? 'active' : 'pending'),
-            icon:   r.level2_approved_at ? 'pi pi-check' : 'pi pi-clock',
+            status: r.level_2_approved_at ? 'done' : (r.status === 'pending_level_2' ? 'active' : 'pending'),
+            icon:   r.level_2_approved_at ? 'pi pi-check' : 'pi pi-clock',
         });
     }
-    if (r.level3_approved_at || r.status === 'pending_level_3') {
+    if (r.level_3_approved_at || r.status === 'pending_level_3') {
         evt.push({
             label:  'Board Review',
-            date:   r.level3_approved_at ? formatDate(r.level3_approved_at) : 'Pending',
+            date:   r.level_3_approved_at ? formatDate(r.level_3_approved_at) : 'Pending',
             by:     r.level3Approver?.name ?? '—',
-            status: r.level3_approved_at ? 'done' : (r.status === 'pending_level_3' ? 'active' : 'pending'),
-            icon:   r.level3_approved_at ? 'pi pi-check' : 'pi pi-clock',
+            status: r.level_3_approved_at ? 'done' : (r.status === 'pending_level_3' ? 'active' : 'pending'),
+            icon:   r.level_3_approved_at ? 'pi pi-check' : 'pi pi-clock',
         });
     }
     if (r.status === 'approved') {

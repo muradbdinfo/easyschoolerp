@@ -122,6 +122,7 @@ Route::get('/dashboard', [TenantDashboardController::class, 'index'])->name('das
             Route::delete('/{requisition}/attachments/{index}', [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
             Route::post('/{requisition}/approve',               [PurchaseRequisitionController::class, 'approve'])->name('approve');
             Route::post('/{requisition}/reject',                [PurchaseRequisitionController::class, 'reject'])->name('reject');
+            Route::get('/{requisition}/items-json',              [PurchaseRequisitionController::class, 'itemsJson'])->name('items-json');
         });
 
     Route::resource('purchase-orders', PurchaseOrderController::class);

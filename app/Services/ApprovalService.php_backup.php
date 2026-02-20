@@ -171,7 +171,7 @@ private function createNotification(PurchaseRequisition $pr, ?User $user, ?strin
             'type'         => 'approval_request',
             'title'        => 'Approval Required',
             'message'      => $message,
-            'action_url'   => route('tenant.requisitions.show', $pr->id), // âœ… FIXED
+            'action_url'   => route('tenant.requisitions.show', $pr->id), // ✅ FIXED
             'related_type' => PurchaseRequisition::class,
             'related_id'   => $pr->id,
         ]);
@@ -183,17 +183,7 @@ private function createNotification(PurchaseRequisition $pr, ?User $user, ?strin
     private function getVPOrPrincipal(): ?int
     {
         try {
-            $tenantId = auth()->user()?->tenant_id;
-
-            return User::where('tenant_id', $tenantId)
-                ->whereIn('role', [
-                    'vice_principal',
-                    'principal',
-                    'managing_director',
-                    'deputy_managing_director',
-                ])
-                ->where('is_active', true)
-                ->first()?->id;
+            return User::role(['VP', 'Principal'])->first()?->id;
         } catch (\Exception $e) {
             return null;
         }
@@ -202,16 +192,7 @@ private function createNotification(PurchaseRequisition $pr, ?User $user, ?strin
     private function getBoardApprover(): ?int
     {
         try {
-            $tenantId = auth()->user()?->tenant_id;
-
-            return User::where('tenant_id', $tenantId)
-                ->whereIn('role', [
-                    'rector',
-                    'director_admin',
-                    'managing_director',
-                ])
-                ->where('is_active', true)
-                ->first()?->id;
+            return User::role('Board Member')->first()?->id;
         } catch (\Exception $e) {
             return null;
         }

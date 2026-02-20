@@ -56,25 +56,13 @@ class PurchaseOrder extends Model
 
     public static function generatePONumber(): string
     {
-        $year   = now()->year;
-        $month  = now()->format('m');
+        $year = now()->year;
+        $month = now()->format('m');
         $prefix = "PO-{$year}-{$month}-";
-
-        // Use MAX to get the highest sequence, withTrashed to include deleted/rolled-back records
-        $last = static::withTrashed()
-            ->where('po_number', 'like', $prefix . '%')
-            ->max('po_number');
-
-        $seq = $last ? (int) substr($last, -4) + 1 : 1;
-
-        // Guarantee uniqueness — keep incrementing if number already taken
-        $candidate = $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
-        while (static::withTrashed()->where('po_number', $candidate)->exists()) {
-            $seq++;
-            $candidate = $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
-        }
-
-        return $candidate;
+        $last = static::where('po_number', 'like', $prefix . '%')
+            ->orderByDesc('id')->first();
+        $seq = $last ? (int) substr($last->po_number, -4) + 1 : 1;
+        return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 
     public function recalculateTotals(): void
@@ -86,7 +74,7 @@ class PurchaseOrder extends Model
         $this->total_amount = $subtotal + $vat + $this->freight_charges - $this->discount_amount;
     }
 
-    // â”€â”€ Accessors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Accessors ────────────────────────────────────────────────────────────
 
     public function getStatusBadgeAttribute(): array
     {
@@ -102,7 +90,7 @@ class PurchaseOrder extends Model
         };
     }
 
-    // â”€â”€ Relations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Relations ────────────────────────────────────────────────────────────
 
     public function vendor(): BelongsTo        { return $this->belongsTo(Vendor::class); }
     public function branch(): BelongsTo        { return $this->belongsTo(Branch::class); }
@@ -113,7 +101,7 @@ class PurchaseOrder extends Model
     public function sender(): BelongsTo        { return $this->belongsTo(User::class, 'sent_by'); }
     public function items(): HasMany           { return $this->hasMany(PurchaseOrderItem::class); }
 
-    // â”€â”€ Scopes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Scopes ───────────────────────────────────────────────────────────────
 
     public function scopeDraft($q)      { return $q->where('status', 'draft'); }
     public function scopeSent($q)       { return $q->where('status', 'sent'); }
