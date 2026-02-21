@@ -72,8 +72,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
 */
 Route::middleware(['auth'])->group(function () {
 
-    Route::get('/dashboard', [TenantDashboardController::class, 'index'])->name('dashboard');
 
+Route::get('/dashboard', [TenantDashboardController::class, 'index'])->name('dashboard');
     // -- Notifications -------------------------------------------------------
     Route::prefix('notifications')->name('notifications.')->group(function () {
         Route::get('/',                     [NotificationController::class, 'index'])->name('index');
@@ -84,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // -- Procurement ---------------------------------------------------------
+    // All route names carry the tenant. prefix: tenant.vendors.index, etc.
     Route::prefix('procurement')->name('tenant.')->group(function () {
 
         // Vendors
@@ -107,49 +108,52 @@ Route::middleware(['auth'])->group(function () {
         Route::get('categories-list',          [ItemCategoryController::class, 'list'])->name('categories.list');
 
         // Purchase Requisitions
+        // IMPORTANT: static routes (/create, /autosave, /search/items) declared
+        // BEFORE the {requisition} wildcard to prevent route collision.
         Route::prefix('requisitions')->name('requisitions.')->group(function () {
             Route::get('/',             [PurchaseRequisitionController::class, 'index'])->name('index');
             Route::get('/create',       [PurchaseRequisitionController::class, 'create'])->name('create');
             Route::post('/',            [PurchaseRequisitionController::class, 'store'])->name('store');
             Route::post('/autosave',    [PurchaseRequisitionController::class, 'autosave'])->name('autosave');
             Route::get('/search/items', [PurchaseRequisitionController::class, 'searchItems'])->name('search.items');
-            
+            // Wildcard routes AFTER static routes
             Route::get('/{requisition}',                        [PurchaseRequisitionController::class, 'show'])->name('show');
             Route::get('/{requisition}/edit',                   [PurchaseRequisitionController::class, 'edit'])->name('edit');
             Route::put('/{requisition}',                        [PurchaseRequisitionController::class, 'update'])->name('update');
             Route::delete('/{requisition}/attachments/{index}', [PurchaseRequisitionController::class, 'deleteAttachment'])->name('attachments.delete');
             Route::post('/{requisition}/approve',               [PurchaseRequisitionController::class, 'approve'])->name('approve');
             Route::post('/{requisition}/reject',                [PurchaseRequisitionController::class, 'reject'])->name('reject');
-            Route::get('/{requisition}/items-json',             [PurchaseRequisitionController::class, 'itemsJson'])->name('items-json');
+            Route::get('/{requisition}/items-json',              [PurchaseRequisitionController::class, 'itemsJson'])->name('items-json');
         });
 
-        // Purchase Orders
-        Route::resource('purchase-orders', PurchaseOrderController::class);
+    Route::resource('purchase-orders', PurchaseOrderController::class);
         Route::post('purchase-orders/{purchaseOrder}/send',   [PurchaseOrderController::class, 'send'])->name('purchase-orders.send');
         Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
         Route::get('purchase-orders-approved-prs',            [PurchaseOrderController::class, 'approvedPRs'])->name('purchase-orders.approved-prs');
 
         // Goods Receipt Notes
+       
         Route::resource('grn', GoodsReceiptNoteController::class)
             ->only(['index', 'create', 'store', 'show']);
 
     });
 
     // -- Assets --------------------------------------------------------------
+
     Route::prefix('assets')->name('tenant.assets.')->group(function () {
 
-        // Asset Register
+        // ── Asset Register (index / create / store) ────────────────────────
         Route::get('/',       [AssetController::class, 'index'])->name('index');
         Route::get('/create', [AssetController::class, 'create'])->name('create');
         Route::post('/',      [AssetController::class, 'store'])->name('store');
 
-        // Asset Categories
+        // ── Asset Categories ───────────────────────────────────────────────
         Route::get('/categories',                    [AssetCategoryController::class, 'index'])->name('categories.index');
         Route::post('/categories',                   [AssetCategoryController::class, 'store'])->name('categories.store');
         Route::put('/categories/{assetCategory}',    [AssetCategoryController::class, 'update'])->name('categories.update');
         Route::delete('/categories/{assetCategory}', [AssetCategoryController::class, 'destroy'])->name('categories.destroy');
 
-        // Transfers
+        // ── Transfers ──────────────────────────────────────────────────────
         Route::get('/transfers',                          [AssetTransferController::class, 'index'])->name('transfers.index');
         Route::get('/transfers/create',                   [AssetTransferController::class, 'create'])->name('transfers.create');
         Route::post('/transfers',                         [AssetTransferController::class, 'store'])->name('transfers.store');
@@ -157,7 +161,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/transfers/{assetTransfer}/approve', [AssetTransferController::class, 'approve'])->name('transfers.approve');
         Route::post('/transfers/{assetTransfer}/reject',  [AssetTransferController::class, 'reject'])->name('transfers.reject');
 
-        // Maintenance
+        // ── Maintenance ────────────────────────────────────────────────────
         Route::get('/maintenance',                              [AssetMaintenanceController::class, 'index'])->name('maintenance.index');
         Route::get('/maintenance/create',                       [AssetMaintenanceController::class, 'create'])->name('maintenance.create');
         Route::post('/maintenance',                             [AssetMaintenanceController::class, 'store'])->name('maintenance.store');
@@ -167,13 +171,13 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/maintenance/{assetMaintenance}',        [AssetMaintenanceController::class, 'destroy'])->name('maintenance.destroy');
         Route::post('/maintenance/{assetMaintenance}/complete', [AssetMaintenanceController::class, 'complete'])->name('maintenance.complete');
 
-        // Depreciation
-        Route::get('/depreciation',                  [AssetDepreciationController::class, 'index'])->name('depreciation.index');
-        Route::get('/depreciation/run',              [AssetDepreciationController::class, 'run'])->name('depreciation.run');
-        Route::post('/depreciation/process',         [AssetDepreciationController::class, 'process'])->name('depreciation.process');
-        Route::get('/depreciation/{asset}/schedule', [AssetDepreciationController::class, 'schedule'])->name('depreciation.schedule');
+        // ── Depreciation ───────────────────────────────────────────────────
+        Route::get('/depreciation',                       [AssetDepreciationController::class, 'index'])->name('depreciation.index');
+        Route::get('/depreciation/run',                   [AssetDepreciationController::class, 'run'])->name('depreciation.run');
+        Route::post('/depreciation/process',              [AssetDepreciationController::class, 'process'])->name('depreciation.process');
+        Route::get('/depreciation/{asset}/schedule',      [AssetDepreciationController::class, 'schedule'])->name('depreciation.schedule');
 
-        // Physical Verification
+        // ── Physical Verification ──────────────────────────────────────────
         Route::get('/verification',                              [AssetVerificationController::class, 'index'])->name('verification.index');
         Route::get('/verification/create',                       [AssetVerificationController::class, 'create'])->name('verification.create');
         Route::post('/verification',                             [AssetVerificationController::class, 'store'])->name('verification.store');
@@ -182,7 +186,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/verification/{cycle}/items/{item}/verify', [AssetVerificationController::class, 'verify'])->name('verification.verify');
         Route::post('/verification/items/{item}/resolve',        [AssetVerificationController::class, 'resolveDiscrepancy'])->name('verification.resolve');
 
-        // Asset wildcard routes LAST (after all static prefixes)
+        // ── Asset wildcard routes LAST ─────────────────────────────────────
+        // (placed after all static prefixes so they never swallow sub-routes)
         Route::get('/{asset}',      [AssetController::class, 'show'])->name('show');
         Route::get('/{asset}/edit', [AssetController::class, 'edit'])->name('edit');
         Route::put('/{asset}',      [AssetController::class, 'update'])->name('update');
@@ -198,6 +203,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // -- Reports -------------------------------------------------------------
+    // Route names: tenant.reports.procurement / tenant.reports.assets
     Route::prefix('reports')->name('tenant.reports.')->group(function () {
         Route::get('/procurement',     [ReportController::class, 'procurement'])->name('procurement');
         Route::get('/assets',          [ReportController::class, 'assets'])->name('assets');
@@ -205,6 +211,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // -- Settings ------------------------------------------------------------
+
     Route::prefix('settings')->name('tenant.settings.')->group(function () {
 
         // Departments & Branches
@@ -222,16 +229,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('school/remove-logo', [SchoolSettingsController::class, 'removeLogo'])->name('school.remove-logo');
         Route::post('school/modules',     [SchoolSettingsController::class, 'updateModules'])->name('school.modules');
 
-        // Approval Policies
-        Route::prefix('approval-policies')->name('approval-policies.')->group(function () {
-            Route::get('/',                    [ApprovalPolicyController::class, 'index'])->name('index');
-            Route::post('/',                   [ApprovalPolicyController::class, 'store'])->name('store');
-            Route::put('/{approvalPolicy}',    [ApprovalPolicyController::class, 'update'])->name('update');
-            Route::delete('/{approvalPolicy}', [ApprovalPolicyController::class, 'destroy'])->name('destroy');
-            Route::post('/copy-defaults',      [ApprovalPolicyController::class, 'copyDefaults'])->name('copy-defaults');
-            Route::post('/reset',              [ApprovalPolicyController::class, 'resetToDefaults'])->name('reset');
-        });
-
     });
+
+    
 
 }); // end middleware(['auth'])

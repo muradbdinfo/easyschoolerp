@@ -13,9 +13,11 @@ class DatabaseSeeder extends Seeder
             ItemCategorySeeder::class,     // 2. Lookup tables
             DepartmentSeeder::class,       // 3. Departments (head_id null for now)
             BranchSeeder::class,           // 4. Branches (head_id null for now)
+            ApprovalPolicySeeder::class,    // default policy seeder
             UserSeeder::class,             // 5. Users (needs tenant/dept/branch IDs)
             HeadAssignmentSeeder::class,   // 6. Assign heads (needs users)
             ProcurementTestDataSeeder::class, // 7. Vendors & items
+            ProcurementTestSeederUserDepartment::class, // user,department seeder
             NotificationSeeder::class,     // 8. Notifications (needs users)
         ]);
     }

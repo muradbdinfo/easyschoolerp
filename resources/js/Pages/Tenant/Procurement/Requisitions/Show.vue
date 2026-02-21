@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { router } from '@inertiajs/vue3';
-import axios from 'axios';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 
@@ -14,31 +13,14 @@ import DataTable     from 'primevue/datatable';
 import Column        from 'primevue/column';
 import Textarea      from 'primevue/textarea';
 import ConfirmDialog from 'primevue/confirmdialog';
-import Timeline      from 'primevue/timeline';
 
 import {
-    ArrowLeft,
-    Building2,
-    GitBranch,
-    CalendarDays,
-    AlertTriangle,
-    FileText,
-    Package,
-    User,
-    Clock,
-    CheckCircle2,
-    XCircle,
-    Pencil,
-    Trash2,
-    Download,
-    Send,
-    ThumbsUp,
-    ThumbsDown,
+    ArrowLeft, Building2, GitBranch, CalendarDays,
+    FileText, Package, User, Clock,
+    CheckCircle2, XCircle, Pencil, Trash2, Download, Send,
 } from 'lucide-vue-next';
 
-// ─────────────────────────────────────────────
-// Props
-// ─────────────────────────────────────────────
+// ── Props ─────────────────────────────────────────────────────────────────
 const props = defineProps({
     requisition: { type: Object,  required: true },
     canApprove:  { type: Boolean, default: false },
@@ -47,122 +29,131 @@ const props = defineProps({
 const toast   = useToast();
 const confirm = useConfirm();
 
-// ─────────────────────────────────────────────
-// Status & priority display helpers
-// ─────────────────────────────────────────────
+// ── Status config — all 5 levels with real role labels ───────────────────
 const statusConfig = {
-    draft:           { severity: 'secondary', label: 'Draft',             icon: Pencil        },
-    submitted:       { severity: 'info',      label: 'Submitted',         icon: Send          },
-    pending_level_1: { severity: 'warning',   label: 'Pending Dept Head', icon: Clock         },
-    pending_level_2: { severity: 'warning',   label: 'Pending VP',        icon: Clock         },
-    pending_level_3: { severity: 'warning',   label: 'Pending Board',     icon: Clock         },
-    approved:        { severity: 'success',   label: 'Approved',          icon: CheckCircle2  },
-    rejected:        { severity: 'danger',    label: 'Rejected',          icon: XCircle       },
-    cancelled:       { severity: 'secondary', label: 'Cancelled',         icon: XCircle       },
+    draft:            { severity: 'secondary', label: 'Draft'                      },
+    submitted:        { severity: 'info',      label: 'Submitted'                  },
+    pending_level_1:  { severity: 'warning',   label: 'Pending: PO Staff'          },
+    pending_level_2:  { severity: 'warning',   label: 'Pending: PO Officer'        },
+    pending_level_3:  { severity: 'warning',   label: 'Pending: Admin Officer'     },
+    pending_level_4:  { severity: 'warning',   label: 'Pending: Director Admin'    },
+    pending_level_5:  { severity: 'warning',   label: 'Pending: MD / DMD'          },
+    approved:         { severity: 'success',   label: 'Approved'                   },
+    rejected:         { severity: 'danger',    label: 'Rejected'                   },
+    cancelled:        { severity: 'secondary', label: 'Cancelled'                  },
+    closed:           { severity: 'secondary', label: 'Closed (PO Created)'        },
 };
-
-const getStatus = (s) => statusConfig[s] ?? { severity: 'secondary', label: s ?? '—', icon: FileText };
+const getStatus = (s) => statusConfig[s] ?? { severity: 'secondary', label: s ?? '—' };
 
 const priorityConfig = {
-    low:    { class: 'bg-gray-100 text-gray-600',     label: 'Low'    },
-    medium: { class: 'bg-blue-100 text-blue-700',     label: 'Medium' },
-    high:   { class: 'bg-orange-100 text-orange-700', label: 'High'   },
+    low:    { class: 'bg-gray-100 text-gray-600',         label: 'Low'    },
+    medium: { class: 'bg-blue-100 text-blue-700',         label: 'Medium' },
+    high:   { class: 'bg-orange-100 text-orange-700',     label: 'High'   },
     urgent: { class: 'bg-red-100 text-red-700 font-bold', label: 'Urgent' },
 };
 const getPriority = (p) => priorityConfig[p] ?? { class: 'bg-gray-100 text-gray-600', label: p ?? '—' };
 
-// ─────────────────────────────────────────────
-// Computed helpers
-// ─────────────────────────────────────────────
-const totalAmount = computed(() =>
-    (props.requisition.items ?? []).reduce(
-        (sum, i) => sum + Number(i.quantity) * Number(i.estimated_unit_price), 0
-    )
-);
+// ── Helpers ───────────────────────────────────────────────────────────────
+const formatDate   = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const formatAmount = (v) => Number(v ?? 0).toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const formatDate = (d) => {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-};
-
-const formatAmount = (v) =>
-    Number(v ?? 0).toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Use DB value — already calculated correctly in controller
+const totalAmount = computed(() => Number(props.requisition.total_amount ?? 0));
 
 const isEditable = computed(() => props.requisition.status === 'draft');
-const isDraft    = computed(() => props.requisition.status === 'draft');
 
-// ─────────────────────────────────────────────
-// Approval timeline data
-// ─────────────────────────────────────────────
+// ── Approval timeline ─────────────────────────────────────────────────────
+//
+// Each step definition:  [ levelN_approver_id key, approved_at key, pending_status, label ]
+const STEPS = [
+    { n: null,  approvedAt: 'created_at',       pendingStatus: null,              label: 'Created by Requester',        approverKey: 'user'            },
+    { n: 1,     approvedAt: 'level_1_approved_at', pendingStatus: 'pending_level_1', label: 'Department Head Check',           approverKey: 'level1Approver'  },
+    { n: 2,     approvedAt: 'level_2_approved_at', pendingStatus: 'pending_level_2', label: 'PO Officer Review',        approverKey: 'level2Approver'  },
+    { n: 3,     approvedAt: 'level_3_approved_at', pendingStatus: 'pending_level_3', label: 'Admin Officer Validation', approverKey: 'level3Approver'  },
+    { n: 4,     approvedAt: 'level_4_approved_at', pendingStatus: 'pending_level_4', label: 'Director Admin Approval',  approverKey: 'level4Approver'  },
+    { n: 5,     approvedAt: 'level_5_approved_at', pendingStatus: 'pending_level_5', label: 'MD / DMD Final Approval',  approverKey: 'level5Approver'  },
+];
+
 const timeline = computed(() => {
-    const r   = props.requisition;
-    const evt = [];
+    const r      = props.requisition;
+    const status = r.status;
+    const result = [];
 
-    evt.push({
-        label:    'Created',
-        date:     formatDate(r.created_at),
-        by:       r.user?.name ?? '—',
-        status:   'done',
-        icon:     'pi pi-file',
+    STEPS.forEach((step) => {
+        // "Created" row — always show
+        if (step.n === null) {
+            result.push({
+                label:  step.label,
+                date:   formatDate(r.created_at),
+                by:     r.user?.name ?? '—',
+                status: 'done',
+            });
+            return;
+        }
+
+        const approvedAt = r[step.approvedAt];
+        const approver   = r[step.approverKey];
+        const levelStatus = r[`level_${step.n}_status`]; // 'pending'|'approved'|'rejected'|null
+
+        // Only show a level if it was assigned (approver exists) or is currently active
+        const isAssigned = !!r[`level_${step.n}_approver_id`];
+        const isActive   = status === step.pendingStatus;
+        if (!isAssigned && !isActive) return;
+
+        let rowStatus;
+        if (levelStatus === 'approved')      rowStatus = 'done';
+        else if (levelStatus === 'rejected') rowStatus = 'rejected';
+        else if (isActive)                   rowStatus = 'active';
+        else                                 rowStatus = 'pending';
+
+        result.push({
+            label:  step.label,
+            date:   approvedAt ? formatDate(approvedAt) : (isActive ? 'Awaiting action' : 'Pending'),
+            by:     approver?.name ?? '—',
+            status: rowStatus,
+        });
     });
 
-    if (r.level_1_approved_at || r.status === 'pending_level_1') {
-        evt.push({
-            label:  'Dept Head Review',
-            date:   r.level_1_approved_at ? formatDate(r.level_1_approved_at) : 'Pending',
-            by:     r.level1Approver?.name ?? '—',
-            status: r.level_1_approved_at ? 'done' : (r.status === 'pending_level_1' ? 'active' : 'pending'),
-            icon:   r.level_1_approved_at ? 'pi pi-check' : 'pi pi-clock',
-        });
-    }
-    if (r.level_2_approved_at || r.status === 'pending_level_2') {
-        evt.push({
-            label:  'VP Review',
-            date:   r.level_2_approved_at ? formatDate(r.level_2_approved_at) : 'Pending',
-            by:     r.level2Approver?.name ?? '—',
-            status: r.level_2_approved_at ? 'done' : (r.status === 'pending_level_2' ? 'active' : 'pending'),
-            icon:   r.level_2_approved_at ? 'pi pi-check' : 'pi pi-clock',
-        });
-    }
-    if (r.level_3_approved_at || r.status === 'pending_level_3') {
-        evt.push({
-            label:  'Board Review',
-            date:   r.level_3_approved_at ? formatDate(r.level_3_approved_at) : 'Pending',
-            by:     r.level3Approver?.name ?? '—',
-            status: r.level_3_approved_at ? 'done' : (r.status === 'pending_level_3' ? 'active' : 'pending'),
-            icon:   r.level_3_approved_at ? 'pi pi-check' : 'pi pi-clock',
-        });
-    }
-    if (r.status === 'approved') {
-        evt.push({
-            label:  'Approved',
+    // Final row
+    if (status === 'approved') {
+        result.push({
+            label:  'Fully Approved',
             date:   formatDate(r.final_approved_at),
             by:     r.finalApprover?.name ?? '—',
             status: 'done',
-            icon:   'pi pi-verified',
         });
     }
-    if (r.status === 'rejected') {
-        evt.push({
+    if (status === 'rejected') {
+        result.push({
             label:  'Rejected',
             date:   formatDate(r.rejected_at),
             by:     r.rejectedBy?.name ?? '—',
             status: 'rejected',
-            icon:   'pi pi-times',
         });
     }
 
-    return evt;
+    return result;
 });
 
-// ─────────────────────────────────────────────
-// Approve / Reject
-// ─────────────────────────────────────────────
-const approvalNote  = ref('');
-const isProcessing  = ref(false);
+const dotClass = (s) => ({
+    done:     'bg-green-100 text-green-600 border-2 border-green-400',
+    active:   'bg-blue-100 text-blue-600 border-2 border-blue-500 animate-pulse',
+    rejected: 'bg-red-100 text-red-600 border-2 border-red-400',
+    pending:  'bg-gray-100 text-gray-400 border-2 border-gray-200',
+}[s] ?? 'bg-gray-100 border-2 border-gray-200');
+
+const dotIcon = (s) => ({
+    done:     'pi pi-check',
+    active:   'pi pi-clock',
+    rejected: 'pi pi-times',
+    pending:  'pi pi-minus',
+}[s] ?? 'pi pi-minus');
+
+// ── Approve / Reject ──────────────────────────────────────────────────────
+const approvalNote = ref('');
+const isProcessing = ref(false);
 
 const approveRequisition = () => {
-    if (isProcessing.value) return;
     confirm.require({
         message: 'Approve this purchase requisition?',
         header:  'Confirm Approval',
@@ -173,25 +164,19 @@ const approveRequisition = () => {
                 route('tenant.requisitions.approve', props.requisition.id),
                 { notes: approvalNote.value },
                 {
-                    onSuccess: () => {
-                        isProcessing.value = false;
-                        toast.add({ severity: 'success', summary: 'Approved', detail: 'Requisition approved successfully', life: 3000 });
-                    },
-                    onError: () => {
-                        isProcessing.value = false;
+                    onSuccess: () => { isProcessing.value = false; },
+                    onError:   () => { isProcessing.value = false;
                         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to approve', life: 3000 });
                     },
                 }
             );
         },
-        reject: () => { isProcessing.value = false; },
     });
 };
 
 const rejectRequisition = () => {
-    if (isProcessing.value) return;
     if (!approvalNote.value?.trim()) {
-        toast.add({ severity: 'warn', summary: 'Note Required', detail: 'Please provide a reason for rejection', life: 3000 });
+        toast.add({ severity: 'warn', summary: 'Required', detail: 'Please provide a rejection reason', life: 3000 });
         return;
     }
     confirm.require({
@@ -205,36 +190,24 @@ const rejectRequisition = () => {
                 route('tenant.requisitions.reject', props.requisition.id),
                 { notes: approvalNote.value },
                 {
-                    onSuccess: () => {
-                        isProcessing.value = false;
-                        toast.add({ severity: 'info', summary: 'Rejected', detail: 'Requisition has been rejected', life: 3000 });
-                    },
-                    onError: () => {
-                        isProcessing.value = false;
+                    onSuccess: () => { isProcessing.value = false; },
+                    onError:   () => { isProcessing.value = false;
                         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to reject', life: 3000 });
                     },
                 }
             );
         },
-        reject: () => { isProcessing.value = false; },
     });
 };
 
-// ─────────────────────────────────────────────
-// Delete draft
-// ─────────────────────────────────────────────
+// ── Delete draft ──────────────────────────────────────────────────────────
 const deleteDraft = () => {
     confirm.require({
-        message:     `Permanently delete "${props.requisition.pr_number}"? This cannot be undone.`,
+        message:     `Permanently delete "${props.requisition.pr_number}"?`,
         header:      'Delete Requisition',
         icon:        'pi pi-exclamation-triangle',
         acceptClass: 'p-button-danger',
-        accept: () => {
-            router.delete(route('tenant.requisitions.destroy', props.requisition.id), {
-                onSuccess: () => toast.add({ severity: 'success', summary: 'Deleted', detail: 'Requisition deleted', life: 3000 }),
-                onError:   () => toast.add({ severity: 'error',   summary: 'Error',   detail: 'Failed to delete',   life: 3000 }),
-            });
-        },
+        accept: () => router.delete(route('tenant.requisitions.destroy', props.requisition.id)),
     });
 };
 </script>
@@ -243,72 +216,47 @@ const deleteDraft = () => {
     <TenantLayout :title="`PR — ${requisition.pr_number}`">
         <div class="p-6 space-y-6">
 
-            <!-- ── Top bar ─────────────────────────────────────── -->
+            <!-- Top bar -->
             <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div class="flex items-start gap-3">
-                    <Button
-                        icon="pi pi-arrow-left"
-                        severity="secondary"
-                        text
-                        rounded
-                        @click="router.visit(route('tenant.requisitions.index'))"
-                    />
+                    <Button icon="pi pi-arrow-left" severity="secondary" text rounded
+                        @click="router.visit(route('tenant.requisitions.index'))" />
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900 leading-tight">
-                            {{ requisition.pr_number }}
-                        </h1>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ requisition.pr_number }}</h1>
                         <p class="text-sm text-gray-500 mt-0.5">
                             Created by <span class="font-medium text-gray-700">{{ requisition.user?.name ?? '—' }}</span>
                             &nbsp;·&nbsp; {{ formatDate(requisition.created_at) }}
                         </p>
                     </div>
                 </div>
-
-                <!-- Status + action buttons -->
-                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
-                    <Tag
-                        :value="getStatus(requisition.status).label"
-                        :severity="getStatus(requisition.status).severity"
-                        class="text-sm px-3 py-1"
-                    />
-                    <Button
-                        v-if="isEditable"
-                        label="Edit"
-                        icon="pi pi-pencil"
-                        severity="secondary"
-                        outlined
-                        size="small"
-                        @click="router.visit(route('tenant.requisitions.edit', requisition.id))"
-                    />
-                    <Button
-                        v-if="isEditable"
-                        icon="pi pi-trash"
-                        severity="danger"
-                        outlined
-                        size="small"
-                        @click="deleteDraft"
-                        v-tooltip.top="'Delete draft'"
-                    />
+                <div class="flex items-center gap-2 flex-wrap flex-shrink-0">
+                    <Tag :value="getStatus(requisition.status).label"
+                         :severity="getStatus(requisition.status).severity"
+                         class="text-sm px-3 py-1" />
+                    <Button v-if="isEditable" label="Edit" icon="pi pi-pencil"
+                        severity="secondary" outlined size="small"
+                        @click="router.visit(route('tenant.requisitions.edit', requisition.id))" />
+                    <Button v-if="isEditable" icon="pi pi-trash" severity="danger"
+                        outlined size="small" @click="deleteDraft" v-tooltip.top="'Delete draft'" />
                 </div>
             </div>
 
-            <!-- ── Main grid: left (details) + right (timeline) ── -->
+            <!-- Main grid -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                <!-- LEFT — 2/3 width -->
+                <!-- LEFT: details -->
                 <div class="lg:col-span-2 space-y-6">
 
-                    <!-- Basic information card -->
+                    <!-- Basic info -->
                     <Card>
                         <template #title>
                             <div class="flex items-center gap-2 text-base">
                                 <FileText :size="18" class="text-blue-600" />
-                                <span>Requisition Details</span>
+                                Requisition Details
                             </div>
                         </template>
                         <template #content>
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-
                                 <div class="bg-gray-50 rounded-lg p-3">
                                     <p class="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-1">Department</p>
                                     <div class="flex items-center gap-1.5 font-semibold text-gray-800">
@@ -316,7 +264,6 @@ const deleteDraft = () => {
                                         {{ requisition.department?.name ?? '—' }}
                                     </div>
                                 </div>
-
                                 <div class="bg-gray-50 rounded-lg p-3">
                                     <p class="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-1">Branch</p>
                                     <div class="flex items-center gap-1.5 font-semibold text-gray-800">
@@ -324,7 +271,6 @@ const deleteDraft = () => {
                                         {{ requisition.branch?.name ?? '—' }}
                                     </div>
                                 </div>
-
                                 <div class="bg-gray-50 rounded-lg p-3">
                                     <p class="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-1">Required By</p>
                                     <div class="flex items-center gap-1.5 font-semibold text-gray-800">
@@ -332,70 +278,45 @@ const deleteDraft = () => {
                                         {{ formatDate(requisition.required_by_date) }}
                                     </div>
                                 </div>
-
                                 <div class="bg-gray-50 rounded-lg p-3">
                                     <p class="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-1">Priority</p>
                                     <span :class="['inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold capitalize', getPriority(requisition.priority).class]">
                                         {{ getPriority(requisition.priority).label }}
                                     </span>
                                 </div>
-
                             </div>
                         </template>
                     </Card>
 
-                    <!-- Items card -->
+                    <!-- Items -->
                     <Card>
                         <template #title>
                             <div class="flex items-center gap-2 text-base">
                                 <Package :size="18" class="text-blue-600" />
-                                <span>Items ({{ (requisition.items ?? []).length }})</span>
+                                Items ({{ (requisition.items ?? []).length }})
                             </div>
                         </template>
                         <template #content>
-                            <DataTable
-                                :value="requisition.items ?? []"
-                                size="small"
-                                class="text-sm"
-                                :pt="{ thead: { class: 'bg-gray-50' } }"
-                            >
+                            <DataTable :value="requisition.items ?? []" size="small" class="text-sm">
                                 <template #empty>
-                                    <div class="text-center py-8 text-gray-400">
-                                        <Package :size="36" class="mx-auto mb-2 opacity-30" />
-                                        <p>No items on this requisition.</p>
-                                    </div>
+                                    <div class="text-center py-8 text-gray-400">No items.</div>
                                 </template>
-
                                 <Column field="item_code" header="Code"  style="width:12%" />
-                                <Column field="item_name" header="Item"  style="width:28%" />
+                                <Column field="item_name" header="Item"  style="width:30%" />
                                 <Column field="unit"      header="Unit"  style="width:8%"  />
-
-                                <Column header="Qty" style="width:10%" class="text-right">
-                                    <template #body="{ data }">
-                                        {{ Number(data.quantity).toFixed(2) }}
-                                    </template>
+                                <Column header="Qty" style="width:10%">
+                                    <template #body="{ data }">{{ Number(data.quantity).toFixed(2) }}</template>
                                 </Column>
-
-                                <Column header="Unit Price" style="width:15%" class="text-right">
-                                    <template #body="{ data }">
-                                        {{ formatAmount(data.estimated_unit_price) }}
-                                    </template>
+                                <Column header="Unit Price" style="width:15%">
+                                    <template #body="{ data }">{{ formatAmount(data.estimated_unit_price) }}</template>
                                 </Column>
-
-                                <Column header="Total (BDT)" style="width:15%" class="text-right font-semibold">
+                                <Column header="Total (BDT)" style="width:15%" class="font-semibold">
                                     <template #body="{ data }">
-                                        {{ formatAmount(Number(data.quantity) * Number(data.estimated_unit_price)) }}
-                                    </template>
-                                </Column>
-
-                                <Column header="Specs" style="width:12%">
-                                    <template #body="{ data }">
-                                        <span class="text-gray-500 text-xs truncate">{{ data.specifications || '—' }}</span>
+                                        {{ formatAmount(data.estimated_total ?? (Number(data.quantity) * Number(data.estimated_unit_price))) }}
                                     </template>
                                 </Column>
                             </DataTable>
 
-                            <!-- Grand total row -->
                             <div class="flex justify-end mt-4">
                                 <div class="bg-blue-50 border border-blue-200 rounded-lg px-6 py-3 text-right">
                                     <p class="text-xs text-gray-500 mb-1">Grand Total</p>
@@ -405,12 +326,12 @@ const deleteDraft = () => {
                         </template>
                     </Card>
 
-                    <!-- Justification card -->
+                    <!-- Justification -->
                     <Card>
                         <template #title>
                             <div class="flex items-center gap-2 text-base">
-                                <FileTextIcon :size="18" class="text-blue-600" />
-                                <span>Justification</span>
+                                <FileText :size="18" class="text-blue-600" />
+                                Justification
                             </div>
                         </template>
                         <template #content>
@@ -421,14 +342,12 @@ const deleteDraft = () => {
                                         {{ requisition.purpose || '—' }}
                                     </p>
                                 </div>
-
                                 <div v-if="requisition.justification">
                                     <p class="font-semibold text-gray-500 mb-1">Additional Details</p>
                                     <p class="whitespace-pre-wrap text-gray-800 bg-gray-50 rounded-lg p-3 leading-relaxed">
                                         {{ requisition.justification }}
                                     </p>
                                 </div>
-
                                 <div v-if="requisition.notes">
                                     <p class="font-semibold text-gray-500 mb-1">Internal Notes</p>
                                     <p class="whitespace-pre-wrap text-gray-700 bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-xs">
@@ -439,29 +358,26 @@ const deleteDraft = () => {
                         </template>
                     </Card>
 
-                    <!-- Attachments card -->
+                    <!-- Attachments -->
                     <Card v-if="(requisition.attachments ?? []).length > 0">
                         <template #title>
                             <div class="flex items-center gap-2 text-base">
                                 <i class="pi pi-paperclip text-blue-600" />
-                                <span>Attachments ({{ requisition.attachments.length }})</span>
+                                Attachments ({{ requisition.attachments.length }})
                             </div>
                         </template>
                         <template #content>
                             <ul class="space-y-2">
                                 <li v-for="(att, idx) in requisition.attachments" :key="idx"
-                                    class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm hover:bg-gray-100 transition"
+                                    class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm"
                                 >
                                     <div class="flex items-center gap-2 min-w-0">
                                         <i class="pi pi-file text-gray-400 flex-shrink-0" />
                                         <span class="truncate text-gray-700">{{ att.name }}</span>
-                                        <span class="text-gray-400 text-xs flex-shrink-0">({{ (att.size / 1024).toFixed(1) }} KB)</span>
+                                        <span class="text-gray-400 text-xs">({{ (att.size / 1024).toFixed(1) }} KB)</span>
                                     </div>
-                                    <a
-                                        :href="`/storage/${att.path}`"
-                                        target="_blank"
-                                        class="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium flex-shrink-0 ml-3"
-                                    >
+                                    <a :href="`/storage/${att.path}`" target="_blank"
+                                        class="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium ml-3">
                                         <Download :size="13" /> Download
                                     </a>
                                 </li>
@@ -469,49 +385,43 @@ const deleteDraft = () => {
                         </template>
                     </Card>
 
-                    <!-- ── Approval action card (shown only to approvers) ── -->
+                    <!-- Approval action (approvers only) -->
                     <Card v-if="canApprove" class="border-2 border-blue-200 bg-blue-50/30">
                         <template #title>
                             <div class="flex items-center gap-2 text-base text-blue-700">
                                 <CheckCircle2 :size="18" />
-                                <span>Approval Action</span>
+                                Your Approval Action
                             </div>
                         </template>
                         <template #content>
                             <div class="space-y-4">
+                                <!-- Show current step context -->
+                                <div class="bg-white rounded-lg border border-blue-100 p-3 text-sm">
+                                    <p class="text-gray-500 text-xs mb-1">Current Step</p>
+                                    <p class="font-semibold text-blue-800">
+                                        {{ getStatus(requisition.status).label }}
+                                    </p>
+                                    <p class="text-gray-500 text-xs mt-1">
+                                        Total Amount:
+                                        <span class="font-bold text-gray-800">{{ formatAmount(totalAmount) }} BDT</span>
+                                    </p>
+                                </div>
                                 <div>
                                     <label class="font-semibold text-sm block mb-1">
                                         Notes / Remarks
                                         <span class="text-gray-400 font-normal">(required for rejection)</span>
                                     </label>
-                                    <Textarea
-                                        v-model="approvalNote"
-                                        :rows="3"
+                                    <Textarea v-model="approvalNote" :rows="3"
                                         placeholder="Add a note for the requester…"
-                                        class="w-full"
-                                        autoResize
-                                    />
+                                        class="w-full" autoResize />
                                 </div>
                                 <div class="flex gap-3">
-                                    <Button
-                                        label="Approve"
-                                        icon="pi pi-check"
-                                        severity="success"
-                                        class="flex-1"
-                                        :loading="isProcessing"
-                                        :disabled="isProcessing"
-                                        @click="approveRequisition"
-                                    />
-                                    <Button
-                                        label="Reject"
-                                        icon="pi pi-times"
-                                        severity="danger"
-                                        outlined
-                                        class="flex-1"
-                                        :loading="isProcessing"
-                                        :disabled="isProcessing"
-                                        @click="rejectRequisition"
-                                    />
+                                    <Button label="Approve" icon="pi pi-check" severity="success"
+                                        class="flex-1" :loading="isProcessing"
+                                        @click="approveRequisition" />
+                                    <Button label="Reject" icon="pi pi-times" severity="danger"
+                                        outlined class="flex-1" :loading="isProcessing"
+                                        @click="rejectRequisition" />
                                 </div>
                             </div>
                         </template>
@@ -519,38 +429,30 @@ const deleteDraft = () => {
 
                 </div>
 
-                <!-- RIGHT — 1/3 width: Approval timeline + meta -->
+                <!-- RIGHT: timeline + meta -->
                 <div class="space-y-6">
 
-                    <!-- Approval progress -->
+                    <!-- Approval Progress -->
                     <Card>
                         <template #title>
                             <div class="flex items-center gap-2 text-base">
                                 <Clock :size="18" class="text-blue-600" />
-                                <span>Approval Progress</span>
+                                Approval Progress
                             </div>
                         </template>
                         <template #content>
                             <div v-if="timeline.length === 0" class="text-center text-gray-400 py-6 text-sm">
-                                Not yet submitted for approval.
+                                Not yet submitted.
                             </div>
-                            <div v-else class="relative">
+                            <div v-else>
                                 <div v-for="(evt, idx) in timeline" :key="idx" class="flex gap-3 mb-5 last:mb-0">
-                                    <!-- dot + line -->
                                     <div class="flex flex-col items-center">
-                                        <div :class="[
-                                            'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs',
-                                            evt.status === 'done'     ? 'bg-green-100 text-green-600 border-2 border-green-400' :
-                                            evt.status === 'active'   ? 'bg-blue-100 text-blue-600 border-2 border-blue-400 animate-pulse' :
-                                            evt.status === 'rejected' ? 'bg-red-100 text-red-600 border-2 border-red-400' :
-                                                                         'bg-gray-100 text-gray-400 border-2 border-gray-200'
-                                        ]">
-                                            <i :class="evt.icon" />
+                                        <div :class="['w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs', dotClass(evt.status)]">
+                                            <i :class="dotIcon(evt.status)" />
                                         </div>
-                                        <div v-if="idx < timeline.length - 1" class="w-px flex-1 bg-gray-200 mt-1" />
+                                        <div v-if="idx < timeline.length - 1" class="w-px flex-1 bg-gray-200 mt-1 min-h-4" />
                                     </div>
-                                    <!-- content -->
-                                    <div class="pb-1 pt-1">
+                                    <div class="pb-1 pt-0.5">
                                         <p class="font-semibold text-sm text-gray-800">{{ evt.label }}</p>
                                         <p class="text-xs text-gray-500">{{ evt.date }}</p>
                                         <p v-if="evt.by && evt.by !== '—'" class="text-xs text-gray-400">by {{ evt.by }}</p>
@@ -560,20 +462,19 @@ const deleteDraft = () => {
 
                             <!-- Rejection reason -->
                             <div v-if="requisition.status === 'rejected' && requisition.rejection_reason"
-                                class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm"
-                            >
+                                class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
                                 <p class="font-semibold text-red-700 mb-1">Rejection Reason</p>
                                 <p class="text-red-600 text-xs">{{ requisition.rejection_reason }}</p>
                             </div>
                         </template>
                     </Card>
 
-                    <!-- Meta info card -->
+                    <!-- Meta -->
                     <Card>
                         <template #title>
                             <div class="flex items-center gap-2 text-base">
                                 <User :size="18" class="text-blue-600" />
-                                <span>Details</span>
+                                Details
                             </div>
                         </template>
                         <template #content>
@@ -592,22 +493,20 @@ const deleteDraft = () => {
                                     <dd class="text-gray-700">{{ formatDate(requisition.created_at) }}</dd>
                                 </div>
                                 <div class="flex justify-between">
-                                    <dt class="text-gray-500">Last Updated</dt>
-                                    <dd class="text-gray-700">{{ formatDate(requisition.updated_at) }}</dd>
-                                </div>
-                                <div class="flex justify-between">
                                     <dt class="text-gray-500">PR Date</dt>
                                     <dd class="text-gray-700">{{ formatDate(requisition.pr_date) }}</dd>
+                                </div>
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500">Required By</dt>
+                                    <dd class="text-gray-700">{{ formatDate(requisition.required_by_date) }}</dd>
                                 </div>
                                 <Divider class="my-1" />
                                 <div class="flex justify-between items-center">
                                     <dt class="text-gray-500">Status</dt>
                                     <dd>
-                                        <Tag
-                                            :value="getStatus(requisition.status).label"
-                                            :severity="getStatus(requisition.status).severity"
-                                            class="text-xs"
-                                        />
+                                        <Tag :value="getStatus(requisition.status).label"
+                                             :severity="getStatus(requisition.status).severity"
+                                             class="text-xs" />
                                     </dd>
                                 </div>
                                 <div class="flex justify-between items-center">
@@ -629,10 +528,8 @@ const deleteDraft = () => {
 
                 </div>
             </div>
-
         </div>
 
         <ConfirmDialog />
-
     </TenantLayout>
 </template>

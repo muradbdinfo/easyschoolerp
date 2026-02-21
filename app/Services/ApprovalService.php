@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PurchaseRequisition;
+use App\Models\ApprovalPolicy;
 use App\Models\User;
 use App\Notifications\ApprovalRequestNotification;
 use App\Notifications\ApprovalCompletedNotification;
@@ -10,183 +11,201 @@ use App\Notifications\ApprovalRejectedNotification;
 
 class ApprovalService
 {
-    const LEVEL_1_THRESHOLD = 50000;
-    const LEVEL_2_THRESHOLD = 200000;
-    const LEVEL_3_THRESHOLD = 500000;
-
-    public function determineApprovalLevels(PurchaseRequisition $pr): int
+    /**
+     * Load active policies for this PR's tenant, ordered by level.
+     */
+    private function getPolicies(PurchaseRequisition $pr): \Illuminate\Support\Collection
     {
-        $amount = $pr->total_amount;
+        $tenantId = $pr->user->tenant_id ?? null;
 
-        if ($amount <= self::LEVEL_1_THRESHOLD) {
-            return 1;
-        } elseif ($amount <= self::LEVEL_2_THRESHOLD) {
-            return 2;
-        } else {
-            return 3;
-        }
+        // Use tenant-specific policies if they exist, else global defaults
+        $hasTenant = ApprovalPolicy::where('tenant_id', $tenantId)
+            ->where('is_active', true)->exists();
+
+        return ApprovalPolicy::when($hasTenant,
+                fn($q) => $q->where('tenant_id', $tenantId),
+                fn($q) => $q->whereNull('tenant_id')
+            )
+            ->where('is_active', true)
+            ->orderBy('level')
+            ->get();
     }
 
+    /**
+     * Find first active user in this tenant with any of the given roles.
+     */
+    private function resolveUser(array $roles, int $tenantId): ?int
+    {
+        return User::where('tenant_id', $tenantId)
+            ->whereIn('role', $roles)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->value('id');
+    }
+
+    /**
+     * Assign approvers from policies and set required_approval_levels.
+     * Level 1 is ALWAYS the PR creator's department head (strict).
+     * Levels 2–5 resolved from approval_policies role_name.
+     */
     public function assignApprovers(PurchaseRequisition $pr): void
     {
-        $levels = $this->determineApprovalLevels($pr);
-        $pr->required_approval_levels = $levels;
+        $tenantId = $pr->user->tenant_id;
+        $policies = $this->getPolicies($pr);
 
-        // ✅ FIX 1: eager-load department before accessing head_id
-        // Original: $pr->department->head_id — crashes if relation not loaded
-        if (!$pr->relationLoaded('department')) {
-            $pr->load('department');
-        }
+        $pr->required_approval_levels = $policies->count();
 
-        $deptHeadId = $pr->department?->head_id ?? null;
+        foreach ($policies as $policy) {
+            $level = $policy->level;
 
-        // Level 1: Department Head
-        $pr->level_1_approver_id = $deptHeadId ?? $pr->user_id;
-        $pr->level_1_status      = 'pending';
+            if ($level === 1) {
+                // Strictly use the department head of the PR creator's department
+                $pr->level_1_approver_id = $pr->department->head_id ?? $pr->user_id;
+            } else {
+                $roles      = (array) $policy->role_name;
+                $approverId = $this->resolveUser($roles, $tenantId);
+                $pr->{"level_{$level}_approver_id"} = $approverId;
+            }
 
-        if ($levels >= 2) {
-            // ✅ FIX 2: fallback to level_1_approver_id NOT $pr->user_id
-            // Original fallback was user_id — requester approving own PR is a security hole
-            $pr->level_2_approver_id = $this->getVPOrPrincipal() ?? $pr->level_1_approver_id;
-            $pr->level_2_status      = 'pending';
-        }
-
-        if ($levels >= 3) {
-            // ✅ FIX 3: fallback to level_2_approver_id NOT $pr->user_id
-            $pr->level_3_approver_id = $this->getAdminApprover() ?? $pr->level_2_approver_id;
-            $pr->level_3_status      = 'pending';
+            $pr->{"level_{$level}_status"} = 'pending';
         }
 
         $pr->save();
     }
 
+    /**
+     * Submit PR for approval — starts at level 1.
+     */
     public function submitForApproval(PurchaseRequisition $pr): void
     {
         $this->assignApprovers($pr);
 
-        $pr->status                 = 'pending_level_1';
+        $pr->status                = 'pending_level_1';
         $pr->current_approval_level = 1;
         $pr->save();
 
-        try {
-            if ($pr->level1Approver) {
-                $pr->level1Approver->notify(new ApprovalRequestNotification($pr));
-            }
-            // ✅ FIX 5+6: updated createNotification signature with explicit type/title
-            $this->createNotification(
-                $pr,
-                $pr->level1Approver,
-                'approval_request',
-                'Approval Required',
-                "Purchase requisition {$pr->pr_number} requires your approval"
-            );
-        } catch (\Exception $e) {
-            \Log::warning('submitForApproval notify failed: ' . $e->getMessage());
-        }
+        $this->notifyApprover($pr, 1);
     }
 
+    /**
+     * Approve current level — advance to next or mark fully approved.
+     */
     public function approve(PurchaseRequisition $pr, User $approver, ?string $comments = null): void
     {
-        $currentLevel = $pr->current_approval_level;
+        $level = $pr->current_approval_level;
 
-        $pr->{"level_{$currentLevel}_approved_at"} = now();
-        $pr->{"level_{$currentLevel}_comments"}    = $comments;
-        $pr->{"level_{$currentLevel}_status"}      = 'approved';
+        $pr->{"level_{$level}_approved_at"} = now();
+        $pr->{"level_{$level}_comments"}    = $comments;
+        $pr->{"level_{$level}_status"}      = 'approved';
 
-        $this->addToApprovalHistory($pr, $currentLevel, 'approved', $approver, $comments);
+        $this->addHistory($pr, $level, 'approved', $approver, $comments);
 
-        if ($currentLevel < $pr->required_approval_levels) {
-            $pr->current_approval_level = $currentLevel + 1;
-            $pr->status                 = "pending_level_{$pr->current_approval_level}";
+        $totalLevels = $pr->required_approval_levels ?? $level;
+
+        if ($level < $totalLevels) {
+            $next               = $level + 1;
+            $pr->current_approval_level = $next;
+            $pr->status         = "pending_level_{$next}";
             $pr->save();
-
-            try {
-                $nextApprover = $pr->{"level{$pr->current_approval_level}Approver"};
-                if ($nextApprover) {
-                    $nextApprover->notify(new ApprovalRequestNotification($pr));
-                    // ✅ FIX 6: explicit type/title/message
-                    $this->createNotification(
-                        $pr,
-                        $nextApprover,
-                        'approval_request',
-                        'Approval Required',
-                        "Purchase requisition {$pr->pr_number} requires your approval (Level {$pr->current_approval_level})"
-                    );
-                }
-            } catch (\Exception $e) {
-                \Log::warning('approve next-level notify failed: ' . $e->getMessage());
-            }
+            $this->notifyApprover($pr, $next);
         } else {
             $pr->status            = 'approved';
             $pr->final_approved_at = now();
             $pr->final_approved_by = $approver->id;
             $pr->save();
 
-            try {
-                $pr->user->notify(new ApprovalCompletedNotification($pr));
-                // ✅ FIX 5+6: was hardcoded 'approval_request' type — now 'approval_completed'
-                $this->createNotification(
-                    $pr,
-                    $pr->user,
-                    'approval_completed',
-                    'Requisition Approved',
-                    "Your purchase requisition {$pr->pr_number} has been approved"
-                );
-            } catch (\Exception $e) {
-                \Log::warning('approve completed notify failed: ' . $e->getMessage());
-            }
+            $this->notify($pr->user, new ApprovalCompletedNotification($pr),
+                "PR {$pr->pr_number} has been fully approved.");
         }
     }
 
+    /**
+     * Reject at current level.
+     */
     public function reject(PurchaseRequisition $pr, User $approver, string $reason): void
     {
-        $currentLevel = $pr->current_approval_level;
+        $level = $pr->current_approval_level;
 
-        $pr->{"level_{$currentLevel}_approved_at"} = now();
-        $pr->{"level_{$currentLevel}_comments"}    = $reason;
-        $pr->{"level_{$currentLevel}_status"}      = 'rejected';
-        $pr->status                                = 'rejected';
-        $pr->rejection_reason                      = $reason;
-        $pr->rejected_at                           = now();
-        $pr->rejected_by                           = $approver->id;
+        $pr->{"level_{$level}_approved_at"} = now();
+        $pr->{"level_{$level}_comments"}    = $reason;
+        $pr->{"level_{$level}_status"}      = 'rejected';
+        $pr->status           = 'rejected';
+        $pr->rejection_reason = $reason;
+        $pr->rejected_at      = now();
+        $pr->rejected_by      = $approver->id;
 
-        $this->addToApprovalHistory($pr, $currentLevel, 'rejected', $approver, $reason);
+        $this->addHistory($pr, $level, 'rejected', $approver, $reason);
         $pr->save();
 
+        $this->notify($pr->user, new ApprovalRejectedNotification($pr, $reason),
+            "PR {$pr->pr_number} was rejected: {$reason}");
+    }
+
+    /**
+     * Check if user can approve the current level.
+     * Supports levels 1–5.
+     */
+    public function canApprove(PurchaseRequisition $pr, User $user): bool
+    {
+        $level = $pr->current_approval_level;
+
+        if (!$level) return false;
+
+        // Must be one of the pending statuses (covers all 5 levels)
+        $pendingStatuses = array_map(fn($l) => "pending_level_{$l}", range(1, 5));
+        if (!in_array($pr->status, $pendingStatuses)) return false;
+
+        // Current level status must still be pending
+        if ($pr->{"level_{$level}_status"} !== 'pending') return false;
+
+        // User must be the assigned approver
+        return (int) $pr->{"level_{$level}_approver_id"} === (int) $user->id;
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────
+
+    private function notifyApprover(PurchaseRequisition $pr, int $level): void
+    {
+        $approver = $pr->{"level{$level}Approver"} ?? null;
+        if (!$approver) {
+            // Lazy-load if not loaded
+            $approverId = $pr->{"level_{$level}_approver_id"};
+            $approver   = $approverId ? User::find($approverId) : null;
+        }
+
+        if (!$approver) return;
+
+        $this->notify($approver, new ApprovalRequestNotification($pr),
+            "PR {$pr->pr_number} requires your approval (Level {$level}).");
+    }
+
+    private function notify(User $user, $notification, string $message): void
+    {
         try {
-            $pr->user->notify(new ApprovalRejectedNotification($pr, $reason));
-            // ✅ FIX 5+6: was hardcoded 'approval_request' type — now 'approval_rejected'
-            $this->createNotification(
-                $pr,
-                $pr->user,
-                'approval_rejected',
-                'Requisition Rejected',
-                "Your purchase requisition {$pr->pr_number} has been rejected: {$reason}"
-            );
+            $user->notify($notification);
         } catch (\Exception $e) {
-            \Log::warning('reject notify failed: ' . $e->getMessage());
+            \Log::warning('Notify mail failed: ' . $e->getMessage());
+        }
+
+        try {
+            \App\Models\Notification::create([
+                'user_id'      => $user->id,
+                'type'         => 'approval_request',
+                'title'        => 'Approval Required',
+                'message'      => $message,
+                'action_url'   => route('tenant.requisitions.show',
+                                    request()->route('requisition') ?? ''),
+                'related_type' => PurchaseRequisition::class,
+                'related_id'   => null,
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Notify DB failed: ' . $e->getMessage());
         }
     }
 
-    public function canApprove(PurchaseRequisition $pr, User $user): bool
+    private function addHistory(PurchaseRequisition $pr, int $level, string $action,
+                                 User $approver, ?string $comments): void
     {
-        $currentLevel = $pr->current_approval_level;
-        $approverId   = $pr->{"level_{$currentLevel}_approver_id"};
-
-        // ✅ FIX 4: (int) cast on both sides prevents strict string vs int mismatch
-        // Original: $approverId === $user->id — fails if DB returns "5" and id is 5
-        return (int) $approverId === (int) $user->id
-            && $pr->{"level_{$currentLevel}_status"} === 'pending'
-            && in_array($pr->status, ['pending_level_1', 'pending_level_2', 'pending_level_3']);
-    }
-
-    private function addToApprovalHistory(
-        PurchaseRequisition $pr,
-        int $level,
-        string $action,
-        User $approver,
-        ?string $comments
-    ): void {
         $history   = $pr->approval_history ?? [];
         $history[] = [
             'level'         => $level,
@@ -197,71 +216,5 @@ class ApprovalService
             'timestamp'     => now()->toDateTimeString(),
         ];
         $pr->approval_history = $history;
-    }
-
-    // ✅ FIX 5: added explicit $type and $title parameters
-    // Original: hardcoded 'approval_request' / 'Approval Required' for all 3 event types
-    // Now: completed → 'approval_completed', rejected → 'approval_rejected'
-    private function createNotification(
-        PurchaseRequisition $pr,
-        ?User $user,
-        string $type,
-        string $title,
-        string $message
-    ): void {
-        if (!$user) return;
-
-        try {
-            \App\Models\Notification::create([
-                'user_id'      => $user->id,
-                'type'         => $type,
-                'title'        => $title,
-                'message'      => $message,
-                'action_url'   => route('tenant.requisitions.show', $pr->id),
-                'related_type' => PurchaseRequisition::class,
-                'related_id'   => $pr->id,
-            ]);
-        } catch (\Exception $e) {
-            \Log::warning('createNotification failed: ' . $e->getMessage());
-        }
-    }
-
-    // ✅ FIX 7: role names now match the actual users table enum
-    // Enum: ['admin', 'principal', 'vp', 'dept_head', 'teacher', 'staff']
-    // Original searched: 'vice_principal', 'managing_director', 'deputy_managing_director'
-    //   — NONE of these exist in the enum, so level 2 approver was never found
-    private function getVPOrPrincipal(): ?int
-    {
-        try {
-            $tenantId = auth()->user()?->tenant_id;
-
-            return User::where('tenant_id', $tenantId)
-                ->whereIn('role', [
-                    'principal',  // ✅ matches enum
-                    'vp',         // ✅ matches enum (was 'vice_principal' — wrong)
-                ])
-                ->where('is_active', true)
-                ->first()?->id;
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    // ✅ FIX 8: renamed getBoardApprover() → getAdminApprover()
-    // Original searched: 'rector', 'director_admin', 'managing_director'
-    //   — NONE exist in enum, so level 3 approver was NEVER found
-    // Now uses 'admin' role which exists in enum
-    private function getAdminApprover(): ?int
-    {
-        try {
-            $tenantId = auth()->user()?->tenant_id;
-
-            return User::where('tenant_id', $tenantId)
-                ->where('role', 'admin')  // ✅ matches enum
-                ->where('is_active', true)
-                ->first()?->id;
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

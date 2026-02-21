@@ -37,7 +37,7 @@ import {
     Bell,
     ClipboardList,
     Layers,
-    GraduationCap,
+    GraduationCap,ShieldCheck,
 } from 'lucide-vue-next';
 
 // ------------------------------------------------------------------ Props ---
@@ -163,6 +163,7 @@ const settingsItems = [
     { label: 'Users',       icon: Users,         route: '/settings/users'       },
     { label: 'Departments', icon: Building2,     route: '/settings/departments' },
     { label: 'Branches',    icon: GitBranch,     route: '/settings/branches'    },
+    { label: 'Approval Policies', icon: ShieldCheck,  route: '/settings/approval-policies' },
 ];
 
 // ----------------------------------------------------------- Time ago ---

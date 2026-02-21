@@ -48,21 +48,12 @@ class PurchaseRequisitionItem extends Model
         parent::boot();
 
         static::saving(function ($item) {
-            // Auto-calculate estimated total
-            $item->estimated_total = $item->quantity * $item->estimated_unit_price;
+            // Always keep estimated_total in sync with qty × price
+            $item->estimated_total = round((float)$item->quantity * (float)$item->estimated_unit_price, 2);
         });
 
-        static::saved(function ($item) {
-            // Update parent PR total
-            $item->purchaseRequisition->calculateTotal();
-            $item->purchaseRequisition->save();
-        });
-
-        static::deleted(function ($item) {
-            // Update parent PR total
-            $item->purchaseRequisition->calculateTotal();
-            $item->purchaseRequisition->save();
-        });
+        // NOTE: PR total_amount is calculated explicitly in PurchaseRequisitionController
+        // after all items are saved. No hooks here to avoid recursion and stale-object bugs.
     }
 
     /**

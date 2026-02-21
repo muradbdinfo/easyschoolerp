@@ -22,6 +22,7 @@ class PurchaseRequisitionController extends Controller
 
     public function index(Request $request): Response
     {
+        $user  = auth()->user();
         $query = PurchaseRequisition::with([
             'user:id,name,email',
             'department:id,name',
@@ -29,11 +30,18 @@ class PurchaseRequisitionController extends Controller
             'items'
         ]);
 
+        // ── Visibility rules ──────────────────────────────────────────────
+        // dept_head: sees ONLY PRs from their own department
+        // All other roles: see all PRs (filtered by request params)
+        if ($user->role === 'dept_head') {
+            $query->where('department_id', $user->department_id);
+        }
+
         if ($request->boolean('my_requisitions')) {
-            $query->myRequisitions(auth()->id());
+            $query->myRequisitions($user->id);
         }
         if ($request->boolean('pending_my_approval')) {
-            $query->pendingMyApproval(auth()->id());
+            $query->pendingMyApproval($user->id);
         }
         if ($request->filled('status')) {
             is_array($request->status)
@@ -73,14 +81,20 @@ class PurchaseRequisitionController extends Controller
 
         $requisitions = $query->paginate($request->get('per_page', 15));
 
+        // Summary counts respect same dept_head scope
+        $summaryBase = PurchaseRequisition::query();
+        if ($user->role === 'dept_head') {
+            $summaryBase->where('department_id', $user->department_id);
+        }
         $summary = [
-            'total'     => PurchaseRequisition::count(),
-            'draft'     => PurchaseRequisition::where('status', 'draft')->count(),
-            'submitted' => PurchaseRequisition::whereIn('status', [
-                               'submitted', 'pending_level_1', 'pending_level_2', 'pending_level_3'
+            'total'     => (clone $summaryBase)->count(),
+            'draft'     => (clone $summaryBase)->where('status', 'draft')->count(),
+            'pending'   => (clone $summaryBase)->whereIn('status', [
+                               'submitted','pending_level_1','pending_level_2',
+                               'pending_level_3','pending_level_4','pending_level_5',
                            ])->count(),
-            'approved'  => PurchaseRequisition::where('status', 'approved')->count(),
-            'rejected'  => PurchaseRequisition::where('status', 'rejected')->count(),
+            'approved'  => (clone $summaryBase)->where('status', 'approved')->count(),
+            'rejected'  => (clone $summaryBase)->where('status', 'rejected')->count(),
         ];
 
         return Inertia::render('Tenant/Procurement/Requisitions/Index', [
@@ -170,23 +184,35 @@ class PurchaseRequisitionController extends Controller
                 throw new \Exception('No items provided');
             }
 
+            $total = 0;
             foreach ($items as $itemData) {
                 if (empty($itemData['item_id'])) {
                     throw new \Exception('Item ID missing');
                 }
-                $item = Item::findOrFail($itemData['item_id']);
+                $item     = Item::findOrFail($itemData['item_id']);
+                $qty      = (float) ($itemData['quantity'] ?? 1);
+                $price    = (float) ($itemData['estimated_unit_price'] ?? $item->current_price ?? 0);
+                $lineTotal = $qty * $price;
+                $total    += $lineTotal;
+
                 $pr->items()->create([
                     'item_id'              => $item->id,
                     'item_code'            => $item->code,
                     'item_name'            => $item->name,
                     'item_description'     => $item->description ?? '',
                     'unit'                 => $item->unit,
-                    'quantity'             => $itemData['quantity'] ?? 1,
-                    'estimated_unit_price' => $itemData['estimated_unit_price'] ?? $item->current_price ?? 0,
+                    'quantity'             => $qty,
+                    'estimated_unit_price' => $price,
+                    'estimated_total'      => $lineTotal,
                     'specifications'       => $itemData['specifications'] ?? null,
                     'notes'                => $itemData['notes'] ?? null,
                 ]);
             }
+
+            // Persist the correct total — do NOT rely on hooks or refresh()
+            $pr->total_amount     = $total;
+            $pr->estimated_amount = $total;
+            $pr->save();
 
             if ($request->hasFile('attachments')) {
                 $attachments = $pr->attachments ?? [];
@@ -235,6 +261,7 @@ class PurchaseRequisitionController extends Controller
         $requisition->load([
             'user', 'department', 'branch', 'items.item',
             'level1Approver', 'level2Approver', 'level3Approver',
+            'level4Approver', 'level5Approver',
             'finalApprover', 'rejectedBy',
         ]);
 
@@ -279,20 +306,31 @@ class PurchaseRequisitionController extends Controller
             $requisition->items()->delete();
 
             $items = json_decode($request->input('items', '[]'), true);
+            $total = 0;
             foreach ($items as $itemData) {
-                $item = Item::findOrFail($itemData['item_id']);
+                $item      = Item::findOrFail($itemData['item_id']);
+                $qty       = (float) ($itemData['quantity'] ?? 1);
+                $price     = (float) ($itemData['estimated_unit_price'] ?? $item->current_price ?? 0);
+                $lineTotal = $qty * $price;
+                $total    += $lineTotal;
+
                 $requisition->items()->create([
                     'item_id'              => $item->id,
                     'item_code'            => $item->code,
                     'item_name'            => $item->name,
                     'item_description'     => $item->description ?? '',
                     'unit'                 => $item->unit,
-                    'quantity'             => $itemData['quantity'] ?? 1,
-                    'estimated_unit_price' => $itemData['estimated_unit_price'] ?? $item->current_price ?? 0,
+                    'quantity'             => $qty,
+                    'estimated_unit_price' => $price,
+                    'estimated_total'      => $lineTotal,
                     'specifications'       => $itemData['specifications'] ?? null,
                     'notes'                => $itemData['notes'] ?? null,
                 ]);
             }
+
+            $requisition->total_amount     = $total;
+            $requisition->estimated_amount = $total;
+            $requisition->save();
 
             if ($request->hasFile('attachments')) {
                 $attachments = $requisition->attachments ?? [];
