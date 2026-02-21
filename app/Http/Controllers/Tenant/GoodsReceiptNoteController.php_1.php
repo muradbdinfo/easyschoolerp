@@ -161,12 +161,6 @@ class GoodsReceiptNoteController extends Controller
                     // Update PO item received quantity
                     PurchaseOrderItem::where('id', $itemData['purchase_order_item_id'])
                         ->increment('received_quantity', $itemData['quantity_accepted']);
-
-                    // ── Update item stock ─────────────────────────────────
-                    if ($itemData['quantity_accepted'] > 0) {
-                        \App\Models\Item::where('id', $itemData['item_id'])
-                            ->increment('current_stock', $itemData['quantity_accepted']);
-                    }
                 }
 
                 // Update PO status based on receipt
