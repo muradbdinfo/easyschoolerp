@@ -7,13 +7,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
 
-/**
- * Sent to the requester when their PR is fully approved at all levels.
- *
- * ✅ FIX: Removed 'database' from via().
- * In-app notification is handled by ApprovalService::createNotification()
- * which writes directly to \App\Models\Notification (notifications table).
- */
 class ApprovalCompletedNotification extends Notification
 {
     use Queueable;
@@ -22,10 +15,9 @@ class ApprovalCompletedNotification extends Notification
         public readonly PurchaseRequisition $requisition
     ) {}
 
-    // ✅ FIX: 'mail' only — 'database' removed
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -42,7 +34,6 @@ class ApprovalCompletedNotification extends Notification
             ->line('The procurement team will follow up with next steps.');
     }
 
-    // Kept for reference / future use — NOT called in current setup
     public function toArray(object $notifiable): array
     {
         return [

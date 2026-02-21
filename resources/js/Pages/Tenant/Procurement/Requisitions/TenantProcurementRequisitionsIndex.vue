@@ -11,9 +11,7 @@ import DataTable     from 'primevue/datatable';
 import Column        from 'primevue/column';
 import Button        from 'primevue/button';
 import InputText     from 'primevue/inputtext';
-// ✅ FIX: PrimeVue 4.x renamed Dropdown → Select. Using 'primevue/dropdown'
-// throws a warning (or silently fails in strict mode). Use 'primevue/select'.
-import Select        from 'primevue/select';
+import Dropdown      from 'primevue/dropdown';
 import Tag           from 'primevue/tag';
 import Paginator     from 'primevue/paginator';
 import ConfirmDialog from 'primevue/confirmdialog';
@@ -79,7 +77,7 @@ let searchTimeout = null;
 const applyFilters = (page = 1) => {
     loading.value = true;
     router.get(
-        route('tenant.requisitions.index'),
+        route('tenant.requisitions.index'),                  // ✅ FIXED
         {
             search:        search.value           || undefined,
             status:        statusFilter.value     || undefined,
@@ -117,15 +115,15 @@ const hasActiveFilters = computed(() =>
 
 // ── Status config ──────────────────────────────────────
 const statusConfig = {
-    draft:           { severity: 'secondary', label: 'Draft'             },
-    submitted:       { severity: 'info',      label: 'Submitted'         },
-    pending_level_1: { severity: 'warning',   label: 'Pending Dept Head' },
-    pending_level_2: { severity: 'warning',   label: 'Pending VP'        },
-    pending_level_3: { severity: 'warning',   label: 'Pending Board'     },
-    approved:        { severity: 'success',   label: 'Approved'          },
-    rejected:        { severity: 'danger',    label: 'Rejected'          },
-    cancelled:       { severity: 'secondary', label: 'Cancelled'         },
-    closed:          { severity: 'secondary', label: 'Closed'            },
+    draft:           { severity: 'secondary', label: 'Draft'            },
+    submitted:       { severity: 'info',      label: 'Submitted'        },
+    pending_level_1: { severity: 'warning',   label: 'Pending Dept Head'},
+    pending_level_2: { severity: 'warning',   label: 'Pending VP'       },
+    pending_level_3: { severity: 'warning',   label: 'Pending Board'    },
+    approved:        { severity: 'success',   label: 'Approved'         },
+    rejected:        { severity: 'danger',    label: 'Rejected'         },
+    cancelled:       { severity: 'secondary', label: 'Cancelled'        },
+    closed:          { severity: 'secondary', label: 'Closed'           },
 };
 
 const getStatusConfig = (status) =>
@@ -149,6 +147,7 @@ const openActionMenu = (event, row) => {
     actionMenu.value.toggle(event);
 };
 
+// ✅ FIX: was using tenant.procurement.requisitions.* everywhere
 const actionMenuItems = computed(() => {
     const row = actionTarget.value;
     if (!row) return [];
@@ -187,7 +186,7 @@ const confirmDelete = (row) => {
         icon:        'pi pi-exclamation-triangle',
         acceptClass: 'p-button-danger',
         accept: () => {
-            router.delete(route('tenant.requisitions.destroy', row.id), {
+            router.delete(route('tenant.requisitions.destroy', row.id), {   // ✅ FIXED
                 onSuccess: () => toast.add({ severity: 'success', summary: 'Deleted', detail: 'Requisition deleted.',  life: 3000 }),
                 onError:   () => toast.add({ severity: 'error',   summary: 'Error',   detail: 'Failed to delete.',    life: 3000 }),
             });
@@ -206,10 +205,10 @@ const formatAmount = (v) =>
 
 // ── Summary cards ──────────────────────────────────────
 const summaryCards = computed(() => [
-    { label: 'Total PRs',        value: props.summary.total     ?? 0, icon: FileText,     color: 'blue'   },
-    { label: 'Pending Approval', value: props.summary.submitted ?? 0, icon: Clock,        color: 'yellow' },
-    { label: 'Approved',         value: props.summary.approved  ?? 0, icon: CheckCircle2, color: 'green'  },
-    { label: 'Drafts',           value: props.summary.draft     ?? 0, icon: Pencil,       color: 'gray'   },
+    { label: 'Total PRs',        value: props.summary.total     ?? 0, icon: FileText,    color: 'blue'   },
+    { label: 'Pending Approval', value: props.summary.submitted ?? 0, icon: Clock,       color: 'yellow' },
+    { label: 'Approved',         value: props.summary.approved  ?? 0, icon: CheckCircle2,color: 'green'  },
+    { label: 'Drafts',           value: props.summary.draft     ?? 0, icon: Pencil,      color: 'gray'   },
 ]);
 
 const colorMap = {
@@ -243,7 +242,7 @@ const colorIcon = {
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
                     <Button label="Export" icon="pi pi-download" severity="secondary" outlined size="small"
-                        @click="router.visit(route('tenant.requisitions.index', { export: 'csv' }))" />
+                        @click="router.visit(route('tenant.requisitions.index', { export: 'csv' }))" />  <!-- ✅ FIXED -->
                     <Button v-if="canCreate" label="New Requisition" icon="pi pi-plus" size="small"
                         @click="router.visit(route('tenant.requisitions.create'))" />
                 </div>
@@ -277,20 +276,17 @@ const colorIcon = {
                         </div>
                         <div class="w-full lg:w-48">
                             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Status</label>
-                            <!-- ✅ FIX: Select replaces Dropdown (PrimeVue 4.x) -->
-                            <Select v-model="statusFilter" :options="statusOptions"
+                            <Dropdown v-model="statusFilter" :options="statusOptions"
                                 optionLabel="label" optionValue="value" class="w-full" />
                         </div>
                         <div class="w-full lg:w-44">
                             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Priority</label>
-                            <!-- ✅ FIX: Select replaces Dropdown -->
-                            <Select v-model="priorityFilter" :options="priorityOptions"
+                            <Dropdown v-model="priorityFilter" :options="priorityOptions"
                                 optionLabel="label" optionValue="value" class="w-full" />
                         </div>
                         <div class="w-full lg:w-52">
                             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Department</label>
-                            <!-- ✅ FIX: Select replaces Dropdown -->
-                            <Select v-model="departmentFilter" :options="departmentOptions"
+                            <Dropdown v-model="departmentFilter" :options="departmentOptions"
                                 optionLabel="name" optionValue="id" class="w-full" filter />
                         </div>
                         <div class="flex-shrink-0 pt-5">
@@ -317,7 +313,7 @@ const colorIcon = {
                                 <p class="text-base font-semibold text-gray-500 mb-1">No requisitions found</p>
                                 <p class="text-sm mb-4">{{ hasActiveFilters ? 'Try adjusting your filters.' : 'Create your first purchase requisition.' }}</p>
                                 <Button v-if="!hasActiveFilters && canCreate" label="New Requisition" icon="pi pi-plus" size="small"
-                                    @click="router.visit(route('tenant.requisitions.create'))" />
+                                    @click="router.visit(route('tenant.requisitions.create'))" />  <!-- ✅ FIXED -->
                                 <Button v-else-if="hasActiveFilters" label="Reset Filters" icon="pi pi-times"
                                     severity="secondary" outlined size="small" @click="resetFilters" />
                             </div>
@@ -327,7 +323,7 @@ const colorIcon = {
                         <Column header="PR Number" style="width:13%">
                             <template #body="{ data }">
                                 <button class="text-blue-600 font-semibold hover:underline text-left"
-                                    @click="router.visit(route('tenant.requisitions.show', data.id))">
+                                    @click="router.visit(route('tenant.requisitions.show', data.id))">  <!-- ✅ FIXED -->
                                     {{ data.pr_number }}
                                 </button>
                             </template>

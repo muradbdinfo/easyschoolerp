@@ -52,23 +52,18 @@ class PurchaseRequisition extends Model
     ];
 
     protected $casts = [
-        'pr_date'          => 'date',
+        'pr_date' => 'date',
         'required_by_date' => 'date',
-        'total_amount'     => 'decimal:2',
+        'total_amount' => 'decimal:2',
         'estimated_amount' => 'decimal:2',
         'approval_history' => 'array',
-        'attachments'      => 'array',
-        'is_urgent'        => 'boolean',
-        // ✅ FIX: cast approver FK columns to integer
-        // Ensures canApprove() === comparison always works even if DB returns string
-        'level_1_approver_id' => 'integer',
-        'level_2_approver_id' => 'integer',
-        'level_3_approver_id' => 'integer',
+        'attachments' => 'array',
+        'is_urgent' => 'boolean',
         'level_1_approved_at' => 'datetime',
         'level_2_approved_at' => 'datetime',
         'level_3_approved_at' => 'datetime',
-        'final_approved_at'   => 'datetime',
-        'rejected_at'         => 'datetime',
+        'final_approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     /**
@@ -90,7 +85,7 @@ class PurchaseRequisition extends Model
         static::updating(function ($pr) {
             // Only recalculate on UPDATE — items don't exist during initial INSERT
             if ($pr->exists) {
-                $pr->total_amount     = $pr->items()->sum('estimated_total');
+                $pr->total_amount    = $pr->items()->sum('estimated_total');
                 $pr->estimated_amount = $pr->total_amount;
             }
         });
@@ -101,26 +96,24 @@ class PurchaseRequisition extends Model
      */
     public static function generatePRNumber(): string
     {
-        $year  = date('Y');
+        $year = date('Y');
         $month = date('m');
-
+        
         // Format: PR-YYYY-MM-0001
         $prefix = "PR-{$year}-{$month}-";
-
-        // ✅ FIX: use withTrashed() so soft-deleted PRs don't allow duplicate numbers
-        // Original: static::where(...) — ignored trashed records
-        $lastPR = static::withTrashed()
-            ->where('pr_number', 'like', $prefix . '%')
-            ->orderBy('pr_number', 'desc')
-            ->first();
-
+        
+        // Get last PR number for this month
+        $lastPR = static::where('pr_number', 'like', $prefix . '%')
+                       ->orderBy('pr_number', 'desc')
+                       ->first();
+        
         if ($lastPR) {
             $lastNumber = (int) substr($lastPR->pr_number, -4);
-            $newNumber  = $lastNumber + 1;
+            $newNumber = $lastNumber + 1;
         } else {
             $newNumber = 1;
         }
-
+        
         return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 
@@ -129,7 +122,7 @@ class PurchaseRequisition extends Model
      */
     public function calculateTotal(): void
     {
-        $this->total_amount     = $this->items()->sum('estimated_total');
+        $this->total_amount = $this->items()->sum('estimated_total');
         $this->estimated_amount = $this->total_amount;
     }
 
@@ -197,7 +190,7 @@ class PurchaseRequisition extends Model
             'submitted',
             'pending_level_1',
             'pending_level_2',
-            'pending_level_3',
+            'pending_level_3'
         ]);
     }
 
@@ -216,38 +209,20 @@ class PurchaseRequisition extends Model
         return $query->where('user_id', $userId);
     }
 
-    /**
-     * ✅ FIX: scopePendingMyApproval
-     *
-     * Original bug: no PR status guard — an approved or rejected PR still appeared
-     * in a user's "pending my approval" list because level_X_approver_id still
-     * pointed to them and level_X_status was still 'pending' from before it advanced.
-     *
-     * Fix: outer whereIn('status') fast-path eliminates approved/rejected/draft rows.
-     * Each OR branch also checks that the PR is currently AT that specific level.
-     */
     public function scopePendingMyApproval($query, $userId)
     {
-        return $query
-            // ✅ Fast-path: only rows actively waiting at some approval level
-            ->whereIn('status', ['pending_level_1', 'pending_level_2', 'pending_level_3'])
-            ->where(function ($q) use ($userId) {
-                $q->where(function ($q1) use ($userId) {
-                    $q1->where('level_1_approver_id', $userId)
-                       ->where('level_1_status', 'pending')
-                       ->where('status', 'pending_level_1');  // currently AT level 1
-                })
-                ->orWhere(function ($q2) use ($userId) {
-                    $q2->where('level_2_approver_id', $userId)
-                       ->where('level_2_status', 'pending')
-                       ->where('status', 'pending_level_2');  // currently AT level 2
-                })
-                ->orWhere(function ($q3) use ($userId) {
-                    $q3->where('level_3_approver_id', $userId)
-                       ->where('level_3_status', 'pending')
-                       ->where('status', 'pending_level_3');  // currently AT level 3
-                });
-            });
+        return $query->where(function ($q) use ($userId) {
+            $q->where('level_1_approver_id', $userId)
+              ->where('level_1_status', 'pending')
+              ->orWhere(function ($q2) use ($userId) {
+                  $q2->where('level_2_approver_id', $userId)
+                     ->where('level_2_status', 'pending');
+              })
+              ->orWhere(function ($q3) use ($userId) {
+                  $q3->where('level_3_approver_id', $userId)
+                     ->where('level_3_status', 'pending');
+              });
+        });
     }
 
     /**
@@ -261,15 +236,15 @@ class PurchaseRequisition extends Model
     public function getStatusBadgeAttribute(): array
     {
         $badges = [
-            'draft'           => ['label' => 'Draft',                'severity' => 'secondary'],
-            'submitted'       => ['label' => 'Submitted',            'severity' => 'info'],
-            'pending_level_1' => ['label' => 'Pending Dept Head',    'severity' => 'warning'],
+            'draft' => ['label' => 'Draft', 'severity' => 'secondary'],
+            'submitted' => ['label' => 'Submitted', 'severity' => 'info'],
+            'pending_level_1' => ['label' => 'Pending Dept Head', 'severity' => 'warning'],
             'pending_level_2' => ['label' => 'Pending VP/Principal', 'severity' => 'warning'],
-            'pending_level_3' => ['label' => 'Pending Board',        'severity' => 'warning'],
-            'approved'        => ['label' => 'Approved',             'severity' => 'success'],
-            'rejected'        => ['label' => 'Rejected',             'severity' => 'danger'],
-            'cancelled'       => ['label' => 'Cancelled',            'severity' => 'secondary'],
-            'closed'          => ['label' => 'Closed',               'severity' => 'secondary'],
+            'pending_level_3' => ['label' => 'Pending Board', 'severity' => 'warning'],
+            'approved' => ['label' => 'Approved', 'severity' => 'success'],
+            'rejected' => ['label' => 'Rejected', 'severity' => 'danger'],
+            'cancelled' => ['label' => 'Cancelled', 'severity' => 'secondary'],
+            'closed' => ['label' => 'Closed', 'severity' => 'secondary'],
         ];
 
         return $badges[$this->status] ?? ['label' => $this->status, 'severity' => 'info'];
@@ -278,9 +253,9 @@ class PurchaseRequisition extends Model
     public function getPriorityBadgeAttribute(): array
     {
         $badges = [
-            'low'    => ['label' => 'Low',    'severity' => 'info'],
+            'low' => ['label' => 'Low', 'severity' => 'info'],
             'medium' => ['label' => 'Medium', 'severity' => 'warning'],
-            'high'   => ['label' => 'High',   'severity' => 'danger'],
+            'high' => ['label' => 'High', 'severity' => 'danger'],
             'urgent' => ['label' => 'Urgent', 'severity' => 'danger'],
         ];
 

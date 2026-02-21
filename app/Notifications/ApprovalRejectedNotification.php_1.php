@@ -7,13 +7,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
 
-/**
- * Sent to the requester when their PR is rejected at any approval level.
- *
- * ✅ FIX: Removed 'database' from via().
- * In-app notification is handled by ApprovalService::createNotification()
- * which writes directly to \App\Models\Notification (notifications table).
- */
 class ApprovalRejectedNotification extends Notification
 {
     use Queueable;
@@ -23,10 +16,9 @@ class ApprovalRejectedNotification extends Notification
         public readonly string $reason
     ) {}
 
-    // ✅ FIX: 'mail' only — 'database' removed
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -42,7 +34,6 @@ class ApprovalRejectedNotification extends Notification
             ->line('You may create a new requisition addressing the feedback above.');
     }
 
-    // Kept for reference / future use — NOT called in current setup
     public function toArray(object $notifiable): array
     {
         return [

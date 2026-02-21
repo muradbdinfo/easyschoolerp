@@ -20,6 +20,11 @@ use Illuminate\Support\Facades\Schema;
  *
  * All steps are guarded with hasColumn() / hasForeignKey() so it's safe
  * whether the old migration ran or not.
+ *
+ * DEPLOY STEPS:
+ *  1. DELETE database/migrations/2026_02_17_094400_add_foreign_keys_to_users_table.php
+ *  2. Copy this file to database/migrations/
+ *  3. php artisan migrate
  */
 return new class extends Migration
 {
