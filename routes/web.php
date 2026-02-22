@@ -18,6 +18,7 @@ use App\Http\Controllers\Tenant\ItemCategoryController;
 use App\Http\Controllers\Tenant\PurchaseRequisitionController;
 use App\Http\Controllers\Tenant\PurchaseOrderController;
 use App\Http\Controllers\Tenant\GoodsReceiptNoteController;
+use App\Http\Controllers\Tenant\StockIssueController;
 
 // Controllers - Tenant (Assets)
 use App\Http\Controllers\Tenant\AssetCategoryController;
@@ -133,6 +134,19 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('grn', GoodsReceiptNoteController::class)
             ->only(['index', 'create', 'store', 'show']);
 
+            // Stock Issues
+Route::prefix('stock-issues')->name('stock-issues.')->group(function () {
+    Route::get('/',                              [StockIssueController::class, 'index'])->name('index');
+    Route::get('/create',                        [StockIssueController::class, 'create'])->name('create');
+    Route::post('/',                             [StockIssueController::class, 'store'])->name('store');
+    Route::get('/{stockIssue}',                  [StockIssueController::class, 'show'])->name('show');
+    Route::post('/{stockIssue}/issue',           [StockIssueController::class, 'issue'])->name('issue');
+    Route::post('/{stockIssue}/cancel',          [StockIssueController::class, 'cancel'])->name('cancel');
+});
+
+// Stock Ledger (per item history)
+Route::get('stock-ledger', [StockIssueController::class, 'ledger'])->name('stock-ledger');
+
     });
 
     // -- Assets --------------------------------------------------------------
@@ -201,6 +215,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('reports')->name('tenant.reports.')->group(function () {
         Route::get('/procurement',     [ReportController::class, 'procurement'])->name('procurement');
         Route::get('/assets',          [ReportController::class, 'assets'])->name('assets');
+        Route::get('stock',           [ReportController::class, 'stock'])->name('stock');
         Route::get('/dashboard-stats', [ReportController::class, 'dashboardStats'])->name('dashboard-stats');
     });
 

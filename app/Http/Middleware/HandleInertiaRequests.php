@@ -32,19 +32,19 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
 
-            // ── School / tenant info (for TenantLayout sidebar) ───────────────
+            // ── School / tenant info ──────────────────────────────────────────
             'school' => $user?->tenant ? [
                 'name'      => $user->tenant->name,
                 'subdomain' => $user->tenant->subdomain,
                 'logo'      => $user->tenant->logo,
             ] : null,
 
-            // ── Branches (for branch selector in navbar) ───────────────────────
+            // ── Branches ──────────────────────────────────────────────────────
             'branches' => fn () => $user
                 ? Branch::select('id', 'name')->orderBy('name')->get()
                 : [],
 
-            // ── Notifications (for bell in TenantLayout) ──────────────────────
+            // ── Notifications ─────────────────────────────────────────────────
             'unreadNotificationsCount' => fn () => $user
                 ? $user->notifications()->unread()->count()
                 : 0,
@@ -56,7 +56,7 @@ class HandleInertiaRequests extends Middleware
                       ->get(['id', 'type', 'title', 'message', 'action_url', 'read_at', 'created_at'])
                 : [],
 
-            // ── Ziggy (named routes in JS) ────────────────────────────────────
+            // ── Ziggy ─────────────────────────────────────────────────────────
             'ziggy' => fn () => array_merge(
                 (new Ziggy)->toArray(),
                 ['location' => $request->url()]
@@ -64,8 +64,9 @@ class HandleInertiaRequests extends Middleware
 
             // ── Flash messages ────────────────────────────────────────────────
             'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error'   => fn () => $request->session()->get('error'),
+                'success'        => fn () => $request->session()->get('success'),
+                'error'          => fn () => $request->session()->get('error'),
+                'created_assets' => fn () => $request->session()->get('created_assets'),
             ],
 
         ]);

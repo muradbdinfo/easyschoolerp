@@ -37,7 +37,7 @@ import {
     Bell,
     ClipboardList,
     Layers,
-    GraduationCap,ShieldCheck,
+    GraduationCap,ShieldCheck,PackageOpen,
 } from 'lucide-vue-next';
 
 // ------------------------------------------------------------------ Props ---
@@ -141,6 +141,7 @@ const procurementItems = [
     { label: 'Requisitions',    icon: FileText, route: '/procurement/requisitions'    },
     { label: 'Purchase Orders', icon: Package,  route: '/procurement/purchase-orders' },
     { label: 'Goods Receipt',   icon: Truck,    route: '/procurement/grn'             },
+    { label: 'Stock Issues', icon: PackageOpen, route: '/procurement/stock-issues', badge: null },
 ];
 
 // NOTE: Register uses exact:true so /assets does NOT highlight every sub-page
@@ -156,6 +157,7 @@ const assetsItems = [
 const reportsItems = [
     { label: 'Procurement', icon: ClipboardList, route: '/reports/procurement' },
     { label: 'Assets',      icon: Layers,        route: '/reports/assets'      },
+    { label: 'Stock Report', icon: PackageOpen, route: '/reports/stock' }
 ];
 
 const settingsItems = [
